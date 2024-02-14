@@ -119,7 +119,44 @@ def menu_links(datasette, actor):
 
 class Routes:
     async def landing(scope, receive, datasette, request):
-        return Response.html(await datasette.render_template("landing.html"))
+        databases = datasette.databases.keys()
+        return Response.html(
+            await datasette.render_template(
+                "landing.html", context={"databases": databases}
+            )
+        )
+
+    async def api_jobs(scope, receive, datasette, request):
+        db_name = request.url_vars["database"]
+        db = datasette.databases.get(db_name)
+        if not db:
+            return Response.json({}, status=400)
+        result = await db.execute(
+            """
+              select
+                jobs.*,
+                transcripts.id as transcript_id
+              from datasette_scribe_submitted_jobs as jobs
+              left join datasette_scribe_transcripts as transcripts on transcripts.job_id = jobs.id
+              order by submitted_at desc
+              limit 10
+            """
+        )
+        return Response.json(
+            list(
+                map(
+                    lambda row: {
+                        "id": row["id"],
+                        "transcript_id": row["transcript_id"],
+                        "url": row["url"],
+                        "status": row["status"],
+                        "submitted_at": row["submitted_at"],
+                        "completed_at": row["completed_at"],
+                    },
+                    result,
+                )
+            )
+        )
 
     async def api_submit(scope, receive, datasette, request):
         BASE_URL = datasette.plugin_config("datasette-scribe").get("BASE_URL")
@@ -129,14 +166,18 @@ class Routes:
 
         data = json.loads((await request.post_body()).decode("utf8"))
         urls = data.get("urls")
+        db_name = data.get("database")
         actor_id = (request.actor and request.actor.get("id")) or None
 
-        db: Database = next(iter(datasette.databases.values()))
+        db = datasette.databases.get(db_name)
+        if not db:
+            return Response.text("", status=400)
 
         loop = asyncio.get_running_loop()
-
+        job_ids = []
         for url in urls:
             job_id = str(ULID()).lower()
+            job_ids.append(job_id)
 
             def add_job(db):
                 with db:
@@ -154,7 +195,7 @@ class Routes:
             ).raise_for_status()
             loop.create_task(bg_task(datasette, db, job_id, url))
 
-        return Response.json({})
+        return Response.json({"job_ids": job_ids})
 
 
 @hookimpl
@@ -163,4 +204,5 @@ def register_routes():
         # views
         (r"^/-/datasette-scribe$", Routes.landing),
         (r"^/-/datasette-scribe/api/submit$", Routes.api_submit),
+        (r"^/-/datasette-scribe/api/jobs/(?P<database>.*)$", Routes.api_jobs),
     ]
