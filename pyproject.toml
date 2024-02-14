@@ -30,3 +30,9 @@ test = ["pytest", "pytest-asyncio", "pytest-httpx", "starlette"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "strict"
+
+[tool.setuptools.packages.find]
+namespaces = false
+
+[tool.setuptools.package-data]
+datasette_scribe = ["static/**", "templates/*.html", "*.sql"]
