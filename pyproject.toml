@@ -1,0 +1,32 @@
+[project]
+name = "datasette-scribe"
+version = "0.1a1"
+description = "Transcribe videos in Datasette"
+readme = "README.md"
+authors = [{name = "Alex Garcia"}]
+license = {text = "Apache-2.0"}
+classifiers=[
+    "Framework :: Datasette",
+    "License :: OSI Approved :: Apache Software License"
+]
+requires-python = ">=3.8"
+dependencies = [
+    "datasette",
+    "sqlite-utils",
+    "python-ulid",
+]
+
+[project.urls]
+Homepage = "https://github.com/datasette/datasette-scribe"
+Changelog = "https://github.com/datasette/datasette-scribe/releases"
+Issues = "https://github.com/datasette/datasette-scribe/issues"
+CI = "https://github.com/datasette/datasette-scribe/actions"
+
+[project.entry-points.datasette]
+scribe = "datasette_scribe"
+
+[project.optional-dependencies]
+test = ["pytest", "pytest-asyncio", "pytest-httpx", "starlette"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "strict"

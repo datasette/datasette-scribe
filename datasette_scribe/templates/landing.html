@@ -1,0 +1,29 @@
+
+{% extends "base.html" %}
+
+{% block title %}Scribe{% endblock %}
+
+
+{% block content %}
+<h2>Jobs</h2>
+<h2>Submit</h2>
+<div>
+  <textarea id="urls" rows="8" cols="50">https://www.youtube.com/watch?v=Rp4h0AoZRfc
+https://www.youtube.com/watch?v=mFod551bJ6g</textarea>
+  <button id="urls-submit">Submit</button>
+  <script>
+    document.querySelector('#urls-submit').addEventListener('click', e => {
+      const urls = document.querySelector('#urls').value.split("\n").filter(d => d);
+      fetch('/-/datasette-scribe/api/submit', {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          urls
+        })
+      })
+    });
+  </script>
+</div>
+{% endblock %}

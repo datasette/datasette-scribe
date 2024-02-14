@@ -1,0 +1,19 @@
+## Worker API
+
+### `POST /submit`
+
+- Inputs
+  - `"id"`: string, unique ID for job
+  - `"url"`: string, URL to scribe
+- Returns
+  - `"status"`: `"pending"`
+  - `"job_id"`: job ID
+
+### `GET /status/<job_id>`
+
+- Returns
+  - `"completed"`: boolean
+  - `"error"`: boolean
+  - `"message"`: optional string, only when error == true
+  - `"transcript"`: optional JSON, only when `completed == true`
+  - `"stage"`: optional string, only when `!completed && !error`
