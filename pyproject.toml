@@ -1,6 +1,6 @@
 [project]
 name = "datasette-scribe"
-version = "0.1a3"
+version = "0.1a4"
 description = "Transcribe videos in Datasette"
 readme = "README.md"
 authors = [{name = "Alex Garcia"}]
