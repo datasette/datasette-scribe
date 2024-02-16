@@ -134,6 +134,47 @@ class Routes:
             )
         )
 
+    async def transcript(scope, receive, datasette, request):
+        database = request.url_vars["database"]
+        transcript_id = request.url_vars["transcript_id"]
+        return Response.html(
+            await datasette.render_template(
+                "transcript.html",
+                context={"transcript_id": transcript_id, "database": database},
+            )
+        )
+
+    async def api_transcript(scope, receive, datasette, request):
+        db_name = request.url_vars["database"]
+        transcript_id = request.url_vars["transcript_id"]
+
+        db = datasette.databases.get(db_name)
+        if not db:
+            return Response.json({}, status=400)
+        transcript = (
+            await db.execute(
+                """
+              SELECT *
+              FROM datasette_scribe_transcripts
+              WHERE id = ?
+            """,
+                [transcript_id],
+            )
+        ).first()
+        entries = await db.execute(
+            """
+              SELECT
+                entries.*
+              FROM datasette_scribe_transcription_entries AS entries
+              WHERE transcript_id = ?
+            """,
+            [transcript_id],
+        )
+
+        return Response.json(
+            {"entries": [dict(row) for row in entries], "transcript": dict(transcript)}
+        )
+
     async def api_jobs(scope, receive, datasette, request):
         db_name = request.url_vars["database"]
         db = datasette.databases.get(db_name)
@@ -224,6 +265,14 @@ def register_routes():
     return [
         # views
         (r"^/-/datasette-scribe$", Routes.landing),
+        (
+            r"^/-/datasette-scribe/transcripts/(?P<database>.*)/(?P<transcript_id>.*)$",
+            Routes.transcript,
+        ),
         (r"^/-/datasette-scribe/api/submit$", Routes.api_submit),
         (r"^/-/datasette-scribe/api/jobs/(?P<database>.*)$", Routes.api_jobs),
+        (
+            r"^/-/datasette-scribe/api/transcripts/(?P<database>.*)/(?P<transcript_id>.*)$",
+            Routes.api_transcript,
+        ),
     ]

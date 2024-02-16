@@ -1,0 +1,17 @@
+
+{% extends "base.html" %}
+
+{% block title %}Transcript{% endblock %}
+
+{% block extra_head %}
+  <script id="DATASETTE_SCRIBE_TRANSCRIPT" type="application/json">{{ {
+    "database": database,
+    "transcript_id": transcript_id,
+  } | tojson}}</script>
+  <script src="{{ urls.static_plugins("datasette_scribe", "transcript/index.min.js") }}"></script>
+  <link href="{{ urls.static_plugins("datasette_scribe", "transcript/index.min.css") }}" rel="stylesheet" />
+{% endblock %}
+
+{% block content %}
+<div id="root"></div>
+{% endblock %}
