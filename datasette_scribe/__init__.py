@@ -39,6 +39,8 @@ async def bg_task(datasette, db, job_id, url):
 
         if response.get("completed"):
             transcript = response.get("transcript")
+            video_title = response.get("video_title")
+            video_duration_seconds = response.get("video_duration_seconds")
 
             def completed(db):
                 with db:
@@ -55,9 +57,15 @@ async def bg_task(datasette, db, job_id, url):
                     db.execute(
                         """
                           INSERT INTO datasette_scribe_transcripts(id, job_id, url, title, duration, meta)
-                          VALUES (?, ?, ?, NULL, NULL, NULL)
+                          VALUES (?, ?, ?, ?, ?, NULL)
                         """,
-                        [transcript_id, job_id, url],
+                        [
+                            transcript_id,
+                            job_id,
+                            url,
+                            video_title,
+                            video_duration_seconds,
+                        ],
                     )
                     transcript_entries = list(
                         map(
@@ -131,31 +139,44 @@ class Routes:
         db = datasette.databases.get(db_name)
         if not db:
             return Response.json({}, status=400)
-        result = await db.execute(
+        completed_jobs = await db.execute(
             """
               select
-                jobs.*,
-                transcripts.id as transcript_id
+                jobs.id,
+                transcripts.id as transcript_id,
+                jobs.url,
+                jobs.submitted_at,
+                jobs.completed_at,
+                transcripts.title,
+                transcripts.duration,
+                (
+                  select json_object(
+                    'total_entries', count(*),
+                    'total_speakers', count(distinct entries.speaker)
+                  )
+                  from datasette_scribe_transcription_entries as entries
+                  where transcript_id = transcripts.id
+                ) as entries_info
               from datasette_scribe_submitted_jobs as jobs
               left join datasette_scribe_transcripts as transcripts on transcripts.job_id = jobs.id
+              where jobs.status = "completed"
               order by submitted_at desc
               limit 10
             """
         )
+        inprogress_jobs = await db.execute(
+            """
+              SELECT jobs.*
+              FROM datasette_scribe_submitted_jobs AS jobs
+              WHERE status = 'pending'
+              LIMIT 20
+            """
+        )
         return Response.json(
-            list(
-                map(
-                    lambda row: {
-                        "id": row["id"],
-                        "transcript_id": row["transcript_id"],
-                        "url": row["url"],
-                        "status": row["status"],
-                        "submitted_at": row["submitted_at"],
-                        "completed_at": row["completed_at"],
-                    },
-                    result,
-                )
-            )
+            {
+                "completed_jobs": [dict(row) for row in completed_jobs],
+                "inprogress_jobs": [dict(row) for row in inprogress_jobs],
+            }
         )
 
     async def api_submit(scope, receive, datasette, request):

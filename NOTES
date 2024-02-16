@@ -11,9 +11,10 @@
 
 ### `GET /status/<job_id>`
 
-- Returns
-  - `"completed"`: boolean
-  - `"error"`: boolean
-  - `"message"`: optional string, only when error == true
-  - `"transcript"`: optional JSON, only when `completed == true`
-  - `"stage"`: optional string, only when `!completed && !error`
+- Returns one of
+  1. "pending" stage
+  - `completed: false, error: false, stage: "..."`
+  2. "completed" stage
+  - `completed: true, transcript: [...], video_title, video_duration_seconds`
+  3. "failed" stage
+  - `error: true, message: "..."`
