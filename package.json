@@ -13,10 +13,13 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@observablehq/plot": "^0.6.13",
+    "@preact/signals": "^1.2.2",
     "htl": "^0.3.1",
     "preact": "^10.19.4"
   },
   "devDependencies": {
+    "@types/youtube": "^0.0.50",
     "esbuild": "^0.20.0"
   }
 }

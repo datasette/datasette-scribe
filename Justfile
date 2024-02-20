@@ -16,7 +16,7 @@ js:
 dev:
   DATASETTE_SECRET=abc123 watchexec \
     --signal SIGKILL --restart --clear \
-    -e py,ts,js,html,css,sql -- \
-    python -m datasette --root tmp.db \
+    -e py,ts,tsx,js,html,css,sql -- \
+    python -m datasette --root tmp.db tmp2.db \
     -s 'plugins.datasette-scribe.BASE_URL' {{BASE_URL}}
 
