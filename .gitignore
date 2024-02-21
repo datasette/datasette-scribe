@@ -15,3 +15,5 @@ build
 *.db-shm
 *.db-wal
 node_modules
+
+datasette_scribe/static/

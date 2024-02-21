@@ -49,10 +49,10 @@ export class Api {
   static async submitJobs(database: string, urls: string[]) {
     return api("/-/datasette-scribe/api/submit", {
       method: "POST",
-      data: JSON.stringify({
+      data: {
         database,
         urls,
-      }),
+      },
     });
   }
 

@@ -2,8 +2,21 @@ import { h, render } from "preact";
 import { useRef, useState } from "preact/hooks";
 import { formatDuration } from "../../utils";
 import "./index.css";
-import { Signal, effect, signal, useSignalEffect } from "@preact/signals";
+import {
+  Signal,
+  effect,
+  signal,
+  useSignal,
+  useSignalEffect,
+} from "@preact/signals";
 import { Api, ApiJobsResult, transcriptUrl, transcriptRawUrl } from "../../api";
+import {
+  SlOption,
+  SlSelect,
+  SlDialog,
+  SlInput,
+  SlButton,
+} from "../../components/shoelace";
 
 let db: Signal<string>;
 
@@ -70,7 +83,57 @@ function Transcriptions() {
   );
 }
 
+function NewCollectionDialog(props: { open: Signal<boolean> }) {
+  const { open } = props;
+  const name = useSignal("");
+  const description = useSignal("");
+  const submitting = useSignal(false);
+
+  function onSubmit() {
+    submitting.value = true;
+  }
+
+  return (
+    <SlDialog
+      label="Create new Scribe Collection"
+      open={open.value}
+      onSlAfterHide={() => (open.value = false)}
+    >
+      <p>
+        Collections are used to organized transcribed videos. A single video can
+        be a part of multiple collections.
+      </p>
+      <div>
+        <SlInput
+          label="Name"
+          type="text"
+          value={name.value}
+          onSlInput={(e) => (name.value = e.target.value)}
+          disabled={submitting.value}
+        />
+        <br />
+        <SlInput
+          label="Description"
+          type="text"
+          value={description.value}
+          onSlInput={(e) => (description.value = e.target.value)}
+          disabled={submitting.value}
+        />
+        <br />
+        <SlButton
+          type="submit"
+          variant="primary"
+          onClick={onSubmit}
+          loading={submitting.value}
+        >
+          Submit
+        </SlButton>
+      </div>
+    </SlDialog>
+  );
+}
 function Submit() {
+  const open = useSignal(false);
   const textarea = useRef<HTMLTextAreaElement>(null);
 
   function submit() {
@@ -91,6 +154,29 @@ function Submit() {
 
       <textarea ref={textarea} rows={8} cols={50}></textarea>
       <br />
+      <NewCollectionDialog open={open} />
+      <div style="width: 420px;">
+        <SlSelect
+          xlabel={"asdf"}
+          value={["option-1", "option-2"]}
+          multiple
+          clearable
+          onSlInput={(e) => console.log(e.target.value)}
+        >
+          <div slot="label">
+            xxxx{" "}
+            <button onClick={() => (open.value = true)}>
+              Create new collection
+            </button>
+          </div>
+          <SlOption value="option-1">Option 1</SlOption>
+          <SlOption value="option-2">Option 2</SlOption>
+          <SlOption value="option-3">Option 3</SlOption>
+          <SlOption value="option-4">Option 4</SlOption>
+          <SlOption value="option-5">Option 5</SlOption>
+          <SlOption value="option-6">Option 6</SlOption>
+        </SlSelect>
+      </div>
       <button onClick={submit}>Submit</button>
     </div>
   );
@@ -112,6 +198,7 @@ function DatabaseToggle(props: { databases: string[] }) {
     </div>
   );
 }
+
 function Landing(props: { databases: string[] }) {
   return (
     <div>

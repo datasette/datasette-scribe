@@ -33,3 +33,40 @@ create table if not exists datasette_scribe_transcription_entries(
   ended_at float,
   contents text
 );
+
+create table if not exists datasette_scribe_collections(
+  key text primary key,
+  name text,
+  description text
+);
+
+
+create table if not exists datasette_scribe_collection_members(
+  collection_id text references datasette_scribe_collections(key),
+  transcript_id text references datasette_scribe_transcripts(id),
+  unique (collection_id, transcript_id)
+);
+
+create index if not exists idx_datasette_scribe_collection_members_collection_id
+  on datasette_scribe_collection_members(collection_id);
+
+create index if not exists idx_datasette_scribe_collection_members_transcript_id
+  on datasette_scribe_collection_members(transcript_id);
+
+create virtual table if not exists datasette_scribe_transcription_entries_fts using fts5(
+  contents,
+  transcript_id unindexed
+);
+
+CREATE TRIGGER if not exists ds_scribe_entry_after_insert AFTER INSERT ON datasette_scribe_transcription_entries BEGIN
+  INSERT INTO datasette_scribe_transcription_entries_fts(rowid, contents, transcript_id)
+    VALUES (new.rowid, new.contents, new.transcript_id);
+END;
+CREATE TRIGGER if not exists ds_scribe_entry_after_delete AFTER DELETE ON datasette_scribe_transcription_entries BEGIN
+  DELETE FROM datasette_scribe_transcription_entries_fts WHERE rowid = old.rowid;
+END;
+CREATE TRIGGER if not exists ds_scribe_entry_after_update AFTER UPDATE ON datasette_scribe_transcription_entries BEGIN
+  DELETE FROM datasette_scribe_transcription_entries_fts WHERE rowid = old.rowid;
+  INSERT INTO datasette_scribe_transcription_entries_fts(rowid, contents, transcript_id)
+    VALUES (new.rowid, new.contents, new.transcript_id);
+END;
