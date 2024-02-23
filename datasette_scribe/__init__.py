@@ -126,7 +126,7 @@ def menu_links(datasette, actor):
 
 
 class Routes:
-    async def landing(scope, receive, datasette, request):
+    async def landing_view(scope, receive, datasette, request):
         databases = datasette.databases.keys()
         return Response.html(
             await datasette.render_template(
@@ -134,13 +134,23 @@ class Routes:
             )
         )
 
-    async def transcript(scope, receive, datasette, request):
+    async def transcript_view(scope, receive, datasette, request):
         database = request.url_vars["database"]
         transcript_id = request.url_vars["transcript_id"]
         return Response.html(
             await datasette.render_template(
                 "transcript.html",
                 context={"transcript_id": transcript_id, "database": database},
+            )
+        )
+
+    async def collection_view(scope, receive, datasette, request):
+        database = request.url_vars["database"]
+        collection_id = request.url_vars["collection_id"]
+        return Response.html(
+            await datasette.render_template(
+                "collection.html",
+                context={"collection_id": collection_id, "database": database},
             )
         )
 
@@ -154,13 +164,36 @@ class Routes:
         transcript = (
             await db.execute(
                 """
-              SELECT *
-              FROM datasette_scribe_transcripts
-              WHERE id = ?
+              with collections as (
+                SELECT
+                  transcript_id,
+                  json_group_array(
+                    json_object(
+                      'collection_id', members.collection_id,
+                      'name', collections.name
+                    )
+                  ) as collections
+                FROM datasette_scribe_collection_members as members
+                LEFT JOIN datasette_scribe_collections as collections on collections.key = members.collection_id
+                WHERE transcript_id = ?1
+              )
+              SELECT
+                transcripts.id,
+                transcripts.job_id,
+                transcripts.duration,
+                transcripts.title,
+                transcripts.url,
+                collections.collections
+              FROM datasette_scribe_transcripts as transcripts
+              LEFT JOIN collections on collections.transcript_id = transcripts.id
+              WHERE id = ?1
             """,
                 [transcript_id],
             )
         ).first()
+        transcript = dict(transcript)
+        transcript["collections"] = json.loads(transcript["collections"] or "[]")
+
         entries = await db.execute(
             """
               SELECT
@@ -172,7 +205,46 @@ class Routes:
         )
 
         return Response.json(
-            {"entries": [dict(row) for row in entries], "transcript": dict(transcript)}
+            {"entries": [dict(row) for row in entries], "transcript": transcript}
+        )
+
+    async def api_collection(scope, receive, datasette, request):
+        db_name = request.url_vars["database"]
+        collection_id = request.url_vars["collection_id"]
+
+        db = datasette.databases.get(db_name)
+        if not db:
+            return Response.json({}, status=400)
+        collection = (
+            await db.execute(
+                """
+              SELECT
+                *
+              FROM datasette_scribe_collections as collections
+              WHERE key = ?1
+            """,
+                [collection_id],
+            )
+        ).first()
+
+        transcripts = await db.execute(
+            """
+              SELECT
+                transcripts.id,
+                transcripts.title,
+                transcripts.duration
+              FROM datasette_scribe_collection_members AS members
+              LEFT JOIN datasette_scribe_transcripts AS transcripts ON transcripts.id = members.transcript_id
+              WHERE collection_id = ?
+            """,
+            [collection_id],
+        )
+
+        return Response.json(
+            {
+                "collection": dict(collection),
+                "transcripts": [dict(row) for row in transcripts],
+            }
         )
 
     async def api_jobs(scope, receive, datasette, request):
@@ -190,6 +262,18 @@ class Routes:
                 jobs.completed_at,
                 transcripts.title,
                 transcripts.duration,
+                (
+                  select
+                    json_group_array(
+                      json_object(
+                        'collection_id', collection_id,
+                        'name', collections.name
+                      )
+                    )
+                  from datasette_scribe_collection_members as members
+                  left join datasette_scribe_collections as collections on collections.key = members.collection_id
+                  where transcript_id = transcripts.id
+                ) as collections,
                 (
                   select json_object(
                     'total_entries', count(*),
@@ -213,12 +297,170 @@ class Routes:
               LIMIT 20
             """
         )
+
+        def completed_job(row):
+            d = dict(row)
+            d["collections"] = json.loads(row["collections"])
+            return d
+
         return Response.json(
             {
-                "completed_jobs": [dict(row) for row in completed_jobs],
+                "completed_jobs": [completed_job(row) for row in completed_jobs],
                 "inprogress_jobs": [dict(row) for row in inprogress_jobs],
             }
         )
+
+    async def api_collection_add_video(scope, receive, datasette, request):
+        if request.method != "POST":
+            return Response.text("", status=405)
+
+        data = json.loads((await request.post_body()).decode("utf8"))
+        db_name = data.get("database")
+        collection_id = data.get("collection_id")
+        transcript_id = data.get("transcript_id")
+
+        db = datasette.databases.get(db_name)
+        if not db:
+            return Response.text("", status=400)
+
+        def add_video_to_collection(db):
+            with db:
+                db.execute(
+                    """
+                      INSERT INTO datasette_scribe_collection_members(collection_id, transcript_id)
+                      VALUES (?, ?)
+                    """,
+                    [collection_id, transcript_id],
+                )
+
+        await db.execute_write_fn(add_video_to_collection)
+        return Response.json({})
+
+    async def api_collection_remove_video(scope, receive, datasette, request):
+        if request.method != "POST":
+            return Response.text("", status=405)
+
+        data = json.loads((await request.post_body()).decode("utf8"))
+        db_name = data.get("database")
+        collection_id = data.get("collection_id")
+        transcript_id = data.get("transcript_id")
+
+        db = datasette.databases.get(db_name)
+        if not db:
+            return Response.text("", status=400)
+
+        def add_video_to_collection(db):
+            with db:
+                db.execute(
+                    """
+                      DELETE FROM datasette_scribe_collection_members
+                      WHERE collection_id = ? AND transcript_id = ?
+                    """,
+                    [collection_id, transcript_id],
+                )
+
+        await db.execute_write_fn(add_video_to_collection)
+        return Response.json({})
+
+    async def api_collections(scope, receive, datasette, request):
+        db_name = request.url_vars["database"]
+        db = datasette.databases.get(db_name)
+        if not db:
+            return Response.json({}, status=400)
+        collections = await db.execute(
+            """
+              WITH members AS (
+                SELECT
+                  collection_id,
+                  count(transcript_id) as transcript_count
+                FROM datasette_scribe_collection_members
+                GROUP BY 1
+              )
+              SELECT
+                key,
+                name,
+                description,
+                members.transcript_count
+              FROM datasette_scribe_collections as collections
+              LEFT JOIN members ON members.collection_id = collections.key
+
+            """
+        )
+        return Response.json([dict(row) for row in collections])
+
+    async def api_collection_new(scope, receive, datasette, request):
+        if request.method != "POST":
+            return Response.text("", status=405)
+
+        data = json.loads((await request.post_body()).decode("utf8"))
+        db_name = data.get("database")
+        name = data.get("name")
+        description = data.get("description")
+
+        db = datasette.databases.get(db_name)
+        if not db:
+            return Response.text("", status=400)
+
+        if not name.strip():
+            return Response.json({"message": "Name is required"}, status=400)
+
+        def add_collection(db):
+            with db:
+                db.execute(
+                    """
+              INSERT INTO datasette_scribe_collections(key, name, description)
+              VALUES (?, ?, ?)
+            """,
+                    [str(ULID()).lower(), name, description],
+                )
+
+        await db.execute_write_fn(add_collection)
+
+        return Response.json({})
+
+    async def api_search_collection(scope, receive, datasette, request):
+        if request.method != "POST":
+            return Response.text("", status=405)
+
+        data = json.loads((await request.post_body()).decode("utf8"))
+        db_name = data.get("database")
+        collection_id = data.get("collection_id")
+        query = data.get("query")
+
+        db = datasette.databases.get(db_name)
+        if not db:
+            return Response.text("", status=400)
+        print(collection_id, query)
+        search_results = await db.execute(
+            """
+              SELECT
+                entries.transcript_id,
+                transcripts.title as video_title,
+                transcripts.url as video_url,
+                speaker,
+                started_at,
+                entries.contents,
+                highlight(
+                  datasette_scribe_transcription_entries_fts,
+                  0,
+                  '<strong>',
+                  '</strong>'
+                ) AS highlighted_contents
+              FROM datasette_scribe_transcription_entries_fts AS entries_fts
+              LEFT JOIN datasette_scribe_transcription_entries AS entries ON entries.rowid = entries_fts.rowid
+              LEFT JOIN datasette_scribe_transcripts AS transcripts ON transcripts.id = entries.transcript_id
+              WHERE entries_fts.contents MATCH :query
+                AND entries_fts.transcript_id IN (
+                  SELECT transcript_id
+                  FROM datasette_scribe_collection_members
+                  WHERE collection_id = :collection_id
+                )
+              ORDER BY rank
+              LIMIT 20;
+            """,
+            params={"collection_id": collection_id, "query": query},
+        )
+        return Response.json({"results": [dict(row) for row in search_results]})
 
     async def api_submit(scope, receive, datasette, request):
         BASE_URL = datasette.plugin_config("datasette-scribe").get("BASE_URL")
@@ -264,15 +506,43 @@ class Routes:
 def register_routes():
     return [
         # views
-        (r"^/-/datasette-scribe$", Routes.landing),
+        (r"^/-/datasette-scribe$", Routes.landing_view),
         (
             r"^/-/datasette-scribe/transcripts/(?P<database>.*)/(?P<transcript_id>.*)$",
-            Routes.transcript,
+            Routes.transcript_view,
+        ),
+        (
+            r"^/-/datasette-scribe/collection/(?P<database>.*)/(?P<collection_id>.*)$",
+            Routes.collection_view,
         ),
         (r"^/-/datasette-scribe/api/submit$", Routes.api_submit),
         (r"^/-/datasette-scribe/api/jobs/(?P<database>.*)$", Routes.api_jobs),
         (
+            r"^/-/datasette-scribe/api/collections/(?P<database>.*)$",
+            Routes.api_collections,
+        ),
+        (
+            r"^/-/datasette-scribe/api/collection/new$",
+            Routes.api_collection_new,
+        ),
+        (
+            r"^/-/datasette-scribe/api/collection/add_video$",
+            Routes.api_collection_add_video,
+        ),
+        (
+            r"^/-/datasette-scribe/api/collection/remove_video$",
+            Routes.api_collection_remove_video,
+        ),
+        (
+            r"^/-/datasette-scribe/api/collection/search$",
+            Routes.api_search_collection,
+        ),
+        (
             r"^/-/datasette-scribe/api/transcripts/(?P<database>.*)/(?P<transcript_id>.*)$",
             Routes.api_transcript,
+        ),
+        (
+            r"^/-/datasette-scribe/api/collection/(?P<database>.*)/(?P<collection_id>.*)$",
+            Routes.api_collection,
         ),
     ]

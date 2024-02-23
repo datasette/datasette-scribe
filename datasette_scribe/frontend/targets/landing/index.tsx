@@ -9,7 +9,13 @@ import {
   useSignal,
   useSignalEffect,
 } from "@preact/signals";
-import { Api, ApiJobsResult, transcriptUrl, transcriptRawUrl } from "../../api";
+import {
+  Api,
+  ApiJobsResult,
+  transcriptUrl,
+  transcriptRawUrl,
+  Collection,
+} from "../../api";
 import {
   SlOption,
   SlSelect,
@@ -17,6 +23,7 @@ import {
   SlInput,
   SlButton,
 } from "../../components/shoelace";
+import { CollectionTag } from "../../components/CollectionTag";
 
 let db: Signal<string>;
 
@@ -36,6 +43,7 @@ function Transcriptions() {
             <th>Title</th>
             <th>Youtube Link</th>
             <th>Duration</th>
+            <th>Collections</th>
             <th></th>
           </tr>
         </thead>
@@ -65,6 +73,18 @@ function Transcriptions() {
                 </td>
                 <td>{formatDuration(d.duration)}</td>
                 <td>
+                  {d.collections.map((c) => (
+                    <a>
+                      <CollectionTag
+                        database={db.value}
+                        collection_id={c.collection_id}
+                        name={c.name}
+                        size="medium"
+                      />
+                    </a>
+                  ))}
+                </td>
+                <td>
                   <a href={transcriptRawUrl(db.value, d.transcript_id)}>
                     Transcript
                   </a>{" "}
@@ -88,9 +108,19 @@ function NewCollectionDialog(props: { open: Signal<boolean> }) {
   const name = useSignal("");
   const description = useSignal("");
   const submitting = useSignal(false);
+  const error = useSignal<string | null>(null);
 
   function onSubmit() {
     submitting.value = true;
+    Api.collectionNew(db.value, name.value, description.value)
+      .then(() => {
+        open.value = false;
+        submitting.value = false;
+      })
+      .catch((x: Error) => {
+        submitting.value = false;
+        error.value = x.message;
+      });
   }
 
   return (
@@ -128,13 +158,58 @@ function NewCollectionDialog(props: { open: Signal<boolean> }) {
         >
           Submit
         </SlButton>
+        {error.value && <pre>ERROR: {error.value}</pre>}
       </div>
     </SlDialog>
+  );
+}
+
+function CollectionSelector(props: {
+  open: Signal<boolean>;
+  selectedCollectionIds: Signal<string[]>;
+}) {
+  const collections = useSignal<null | Collection[]>(null);
+  useSignalEffect(() => {
+    Api.collections(db.value).then((data) => {
+      collections.value = data;
+    });
+  });
+  if (!collections.value) return <div>Loading...</div>;
+  return (
+    <div style="width: 420px;">
+      <SlSelect
+        xlabel={"asdf"}
+        value={["option-1", "option-2"]}
+        multiple
+        clearable
+        onSlInput={(e) => {
+          props.selectedCollectionIds.value = e.target.value;
+        }}
+      >
+        <div
+          style="display: flex; justify-content: space-between; width: 420px;"
+          slot="label"
+        >
+          <div>
+            <strong>Collections</strong>{" "}
+          </div>
+          <div>
+            <button onClick={() => (props.open.value = true)}>
+              Create new collection
+            </button>
+          </div>
+        </div>
+        {collections.value.map((d) => (
+          <SlOption value={d.key}>{d.name}</SlOption>
+        ))}
+      </SlSelect>
+    </div>
   );
 }
 function Submit() {
   const open = useSignal(false);
   const textarea = useRef<HTMLTextAreaElement>(null);
+  const selectedCollectionIds = useSignal<string[]>([]);
 
   function submit() {
     const urls = textarea.current.value.split("\n").filter((d) => d);
@@ -155,28 +230,10 @@ function Submit() {
       <textarea ref={textarea} rows={8} cols={50}></textarea>
       <br />
       <NewCollectionDialog open={open} />
-      <div style="width: 420px;">
-        <SlSelect
-          xlabel={"asdf"}
-          value={["option-1", "option-2"]}
-          multiple
-          clearable
-          onSlInput={(e) => console.log(e.target.value)}
-        >
-          <div slot="label">
-            xxxx{" "}
-            <button onClick={() => (open.value = true)}>
-              Create new collection
-            </button>
-          </div>
-          <SlOption value="option-1">Option 1</SlOption>
-          <SlOption value="option-2">Option 2</SlOption>
-          <SlOption value="option-3">Option 3</SlOption>
-          <SlOption value="option-4">Option 4</SlOption>
-          <SlOption value="option-5">Option 5</SlOption>
-          <SlOption value="option-6">Option 6</SlOption>
-        </SlSelect>
-      </div>
+      <CollectionSelector
+        open={open}
+        selectedCollectionIds={selectedCollectionIds}
+      />
       <button onClick={submit}>Submit</button>
     </div>
   );
@@ -223,7 +280,7 @@ async function main() {
     const u = new URL(window.location.href);
     u.searchParams.delete("db");
     u.searchParams.append("db", db.value);
-    history.replaceState({}, "Title", u);
+    history.replaceState({}, "", u);
   });
   render(<Landing databases={databases} />, document.querySelector("#root")!);
 }
