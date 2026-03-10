@@ -10,10 +10,15 @@ venv
 .vscode
 dist
 build
+uv.lock
 
 *.db
 *.db-shm
 *.db-wal
 node_modules
 
-datasette_scribe/static/
+# Vite build outputs
+datasette_scribe/static/gen/
+datasette_scribe/manifest.json
+*.mp3
+*.wav

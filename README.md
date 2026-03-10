@@ -1,3 +1,0 @@
-# datasette-scribe
-
-WIP

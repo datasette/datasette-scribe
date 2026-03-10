@@ -1,0 +1,51 @@
+{
+  "$defs": {
+    "CollectionSummary": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "created_at": {
+          "default": "",
+          "title": "Created At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "CollectionSummary",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "database_name": {
+      "title": "Database Name",
+      "type": "string"
+    },
+    "collections": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/CollectionSummary"
+      },
+      "title": "Collections",
+      "type": "array"
+    }
+  },
+  "required": [
+    "database_name"
+  ],
+  "title": "NewTranscriptionPageData",
+  "type": "object"
+}

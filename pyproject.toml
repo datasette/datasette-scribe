@@ -1,20 +1,21 @@
 [project]
 name = "datasette-scribe"
-version = "0.1a5"
-description = "Transcribe videos in Datasette"
-readme = "README.md"
-authors = [{name = "Alex Garcia"}]
-license = {text = "Apache-2.0"}
-classifiers=[
+version = "0.2a0"
+description = "Transcribe audio in Datasette"
+requires-python = ">=3.10"
+authors = [{ name = "Alex Garcia" }]
+license = "Apache-2.0"
+classifiers = [
     "Framework :: Datasette",
-    "License :: OSI Approved :: Apache Software License"
+    "License :: OSI Approved :: Apache Software License",
 ]
-requires-python = ">=3.8"
+
 dependencies = [
-    "datasette",
-    "sqlite-utils",
-    "python-ulid",
+    "datasette>=1a23",
+    "datasette-plugin-router>=0.0.1a2",
+    "datasette-vite>=0.0.1a1",
 ]
+
 
 [project.urls]
 Homepage = "https://github.com/datasette/datasette-scribe"
@@ -22,17 +23,27 @@ Changelog = "https://github.com/datasette/datasette-scribe/releases"
 Issues = "https://github.com/datasette/datasette-scribe/issues"
 CI = "https://github.com/datasette/datasette-scribe/actions"
 
+[project.optional-dependencies]
+test = ["pytest", "pytest-asyncio"]
+yt = ["yt-dlp"]
+
+[dependency-groups]
+dev = ["pytest", "pytest-asyncio", "ruff>=0.15.0"]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project.scripts]
+datasette-scribe = "datasette_scribe.cli:scribe_cli"
+
 [project.entry-points.datasette]
 scribe = "datasette_scribe"
 
-[project.optional-dependencies]
-test = ["pytest", "pytest-asyncio", "pytest-httpx", "starlette"]
-
-[tool.pytest.ini_options]
-asyncio_mode = "strict"
+[tool.setuptools.package-data]
+datasette_scribe = ["static/**/*", "templates/*", "manifest.json", "*.sql"]
 
 [tool.setuptools.packages.find]
-namespaces = false
-
-[tool.setuptools.package-data]
-datasette_scribe = ["static/**", "templates/*.html", "*.sql"]
+exclude = [
+    "frontend",
+]

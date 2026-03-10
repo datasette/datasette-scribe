@@ -1,0 +1,170 @@
+{
+  "$defs": {
+    "CollectionWithTranscriptions": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "created_at": {
+          "default": "",
+          "title": "Created At",
+          "type": "string"
+        },
+        "transcriptions": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/TranscriptionSummary"
+          },
+          "title": "Transcriptions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "CollectionWithTranscriptions",
+      "type": "object"
+    },
+    "TranscriptionSummary": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        },
+        "input_type": {
+          "default": "url",
+          "title": "Input Type",
+          "type": "string"
+        },
+        "filename": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Filename"
+        },
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "granularity": {
+          "title": "Granularity",
+          "type": "string"
+        },
+        "submitted_at": {
+          "title": "Submitted At",
+          "type": "string"
+        },
+        "completed_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Completed At"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        },
+        "entries_count": {
+          "default": 0,
+          "title": "Entries Count",
+          "type": "integer"
+        },
+        "duration": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Duration"
+        },
+        "speakers_count": {
+          "default": 0,
+          "title": "Speakers Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "model",
+        "granularity",
+        "submitted_at"
+      ],
+      "title": "TranscriptionSummary",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "database_name": {
+      "title": "Database Name",
+      "type": "string"
+    },
+    "collections": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/CollectionWithTranscriptions"
+      },
+      "title": "Collections",
+      "type": "array"
+    },
+    "uncollected_transcriptions": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/TranscriptionSummary"
+      },
+      "title": "Uncollected Transcriptions",
+      "type": "array"
+    }
+  },
+  "required": [
+    "database_name"
+  ],
+  "title": "ScribePageData",
+  "type": "object"
+}

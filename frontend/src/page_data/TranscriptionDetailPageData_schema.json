@@ -1,0 +1,345 @@
+{
+  "$defs": {
+    "CollectionSummary": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "created_at": {
+          "default": "",
+          "title": "Created At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "CollectionSummary",
+      "type": "object"
+    },
+    "TranscriptionEdit": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "operation": {
+          "title": "Operation",
+          "type": "string"
+        },
+        "detail": {
+          "title": "Detail",
+          "type": "string"
+        },
+        "created_at": {
+          "title": "Created At",
+          "type": "string"
+        },
+        "entry_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Entry Id"
+        }
+      },
+      "required": [
+        "id",
+        "operation",
+        "detail",
+        "created_at"
+      ],
+      "title": "TranscriptionEdit",
+      "type": "object"
+    },
+    "TranscriptionEntry": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "start": {
+          "title": "Start",
+          "type": "number"
+        },
+        "end": {
+          "title": "End",
+          "type": "number"
+        },
+        "speaker_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Speaker Id"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "original_speaker_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Original Speaker Id"
+        },
+        "original_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Original Text"
+        }
+      },
+      "required": [
+        "id",
+        "start",
+        "end",
+        "text"
+      ],
+      "title": "TranscriptionEntry",
+      "type": "object"
+    },
+    "TranscriptionSpeaker": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "is_original": {
+          "default": true,
+          "title": "Is Original",
+          "type": "boolean"
+        },
+        "used_in_other_transcriptions": {
+          "default": false,
+          "title": "Used In Other Transcriptions",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "TranscriptionSpeaker",
+      "type": "object"
+    },
+    "TranscriptionSummary": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        },
+        "input_type": {
+          "default": "url",
+          "title": "Input Type",
+          "type": "string"
+        },
+        "filename": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Filename"
+        },
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "granularity": {
+          "title": "Granularity",
+          "type": "string"
+        },
+        "submitted_at": {
+          "title": "Submitted At",
+          "type": "string"
+        },
+        "completed_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Completed At"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        },
+        "entries_count": {
+          "default": 0,
+          "title": "Entries Count",
+          "type": "integer"
+        },
+        "duration": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Duration"
+        },
+        "speakers_count": {
+          "default": 0,
+          "title": "Speakers Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "model",
+        "granularity",
+        "submitted_at"
+      ],
+      "title": "TranscriptionSummary",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "database_name": {
+      "title": "Database Name",
+      "type": "string"
+    },
+    "transcription": {
+      "$ref": "#/$defs/TranscriptionSummary"
+    },
+    "audio_url": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Audio Url"
+    },
+    "entries": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/TranscriptionEntry"
+      },
+      "title": "Entries",
+      "type": "array"
+    },
+    "speakers": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/TranscriptionSpeaker"
+      },
+      "title": "Speakers",
+      "type": "array"
+    },
+    "all_speakers": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/TranscriptionSpeaker"
+      },
+      "title": "All Speakers",
+      "type": "array"
+    },
+    "edits": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/TranscriptionEdit"
+      },
+      "title": "Edits",
+      "type": "array"
+    },
+    "collection": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CollectionSummary"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "all_collections": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/CollectionSummary"
+      },
+      "title": "All Collections",
+      "type": "array"
+    }
+  },
+  "required": [
+    "database_name",
+    "transcription"
+  ],
+  "title": "TranscriptionDetailPageData",
+  "type": "object"
+}
