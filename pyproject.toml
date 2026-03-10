@@ -7,7 +7,6 @@ authors = [{ name = "Alex Garcia" }]
 license = "Apache-2.0"
 classifiers = [
     "Framework :: Datasette",
-    "License :: OSI Approved :: Apache Software License",
 ]
 
 dependencies = [
