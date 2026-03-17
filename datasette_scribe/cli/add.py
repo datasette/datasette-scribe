@@ -1,5 +1,6 @@
 import asyncio
 import mimetypes
+import os
 import re
 import tempfile
 from pathlib import Path
@@ -41,8 +42,10 @@ def _download_audio_from_url(url: str) -> tuple[Path, str]:
         ],
         "quiet": True,
         "no_warnings": True,
+        "allow_remote_components": ["ejs:github"],
     }
 
+    click.echo("Downloading audio...")
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=True)
         title = info.get("title", "audio")
@@ -55,6 +58,7 @@ def _download_audio_from_url(url: str) -> tuple[Path, str]:
         else:
             raise click.ClickException("yt-dlp download failed: no output file found")
 
+    click.echo(f"Converting to mp3: {output_path}")
     return output_path, title
 
 
@@ -64,9 +68,17 @@ def _download_audio_from_url(url: str) -> tuple[Path, str]:
 def scribe_add(source, db_path_str):
     "Transcribe an audio file or URL and add it to a database"
 
+    if not os.environ.get("MISTRAL_API_KEY"):
+        raise click.ClickException(
+            "MISTRAL_API_KEY environment variable is required. "
+            "Get one at https://console.mistral.ai/"
+        )
+
     if _is_url(source):
-        click.echo(f"Downloading audio from {source}...")
-        audio_path, title = _download_audio_from_url(source)
+        try:
+            audio_path, title = _download_audio_from_url(source)
+        except Exception as e:
+            raise click.ClickException(f"Download failed: {e}")
         filename = f"{title}.mp3"
         url = source
         default_db_name = re.sub(r"[^\w\s-]", "", title).strip().replace(" ", "-")
@@ -77,7 +89,7 @@ def scribe_add(source, db_path_str):
         if not audio_path.exists():
             raise click.ClickException(f"File not found: {source}")
         filename = audio_path.name
-        url = None
+        url = source if _is_url(source) else None
         default_db_name = audio_path.name
 
     if db_path_str is None:
@@ -89,7 +101,7 @@ def scribe_add(source, db_path_str):
     if content_type is None:
         content_type = "audio/mpeg"
 
-    click.echo(f"Transcribing {filename}...")
+    click.echo(f"Uploading {filename} to Mistral for transcription...")
 
     file_bytes = audio_path.read_bytes()
 
@@ -98,7 +110,15 @@ def scribe_add(source, db_path_str):
     try:
         response = asyncio.run(transcribe(file_data=file_bytes, filename=filename))
     except Exception as e:
-        raise click.ClickException(f"Transcription failed: {e}")
+        # Build resume command using the local file
+        resume_parts = ["datasette-scribe", "add", str(audio_path)]
+        if db_path_str:
+            resume_parts.extend(["-d", db_path_str])
+        resume_cmd = " ".join(resume_parts)
+        raise click.ClickException(
+            f"Transcription failed: {e}\n\n"
+            f"To retry without re-downloading:\n  {resume_cmd}"
+        )
 
     transcription_id, entries_count = store_transcription(
         db_path, filename, file_bytes, content_type, response, url=url

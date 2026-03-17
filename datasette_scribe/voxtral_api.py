@@ -67,5 +67,12 @@ async def transcribe(
             files=files,
             timeout=300,
         )
-        response.raise_for_status()
+        if not response.is_success:
+            try:
+                detail = response.json().get("message", response.text)
+            except Exception:
+                detail = response.text
+            raise RuntimeError(
+                f"{response.status_code} {response.reason_phrase}: {detail}"
+            )
         return TranscriptionResponse.model_validate(response.json())

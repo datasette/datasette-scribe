@@ -24,10 +24,10 @@ CI = "https://github.com/datasette/datasette-scribe/actions"
 
 [project.optional-dependencies]
 test = ["pytest", "pytest-asyncio"]
-yt = ["yt-dlp"]
 
 [dependency-groups]
 dev = ["pytest", "pytest-asyncio", "ruff>=0.15.0"]
+yt = ["yt-dlp"]
 
 [build-system]
 requires = ["setuptools"]
