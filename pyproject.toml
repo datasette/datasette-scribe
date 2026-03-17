@@ -12,7 +12,7 @@ classifiers = [
 dependencies = [
     "datasette>=1a23",
     "datasette-plugin-router>=0.0.1a2",
-    "datasette-vite>=0.0.1a1",
+    "datasette-vite>=0.0.1a2",
 ]
 
 
