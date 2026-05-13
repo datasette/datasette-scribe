@@ -1,7 +1,6 @@
 from datasette import hookimpl
 from datasette.permissions import Action
 from datasette_vite import vite_entry
-import os
 
 # Import route modules to trigger route registration on the shared router
 from .routes import pages, api_transcriptions, api_speakers, api_collections
@@ -21,7 +20,6 @@ def extra_template_vars(datasette):
     entry = vite_entry(
         datasette=datasette,
         plugin_package="datasette_scribe",
-        vite_dev_path=os.environ.get("DATASETTE_SCRIBE_VITE_PATH"),
     )
     return {"datasette_scribe_vite_entry": entry}
 

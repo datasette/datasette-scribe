@@ -70,11 +70,12 @@ dev *flags:
         {{flags}}
 
 dev-with-hmr *flags:
-    DATASETTE_SCRIBE_VITE_PATH=http://localhost:5178/ \
     watchexec \
       --stop-signal SIGKILL \
       -e py,html \
       --ignore '*.db' \
       --restart \
       --clear -- \
-      just dev {{flags}}
+      just dev \
+        -s plugins.datasette-vite.dev_ports.datasette_scribe 5178 \
+        {{flags}}
