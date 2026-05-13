@@ -60,7 +60,14 @@ check:
 
 # Development servers
 dev *flags:
-    DATASETTE_SECRET=abc123 uv run datasette -p 8005 {{flags}}
+    DATASETTE_SECRET=abc123 \
+      uv run \
+        --with datasette-debug-gotham \
+        --with datasette-sidebar \
+        datasette \
+        -s permissions.datasette-sidebar-access.id "*" \
+        -s permissions.datasette_scribe_scribe.id "*" \
+        {{flags}}
 
 dev-with-hmr *flags:
     DATASETTE_SCRIBE_VITE_PATH=http://localhost:5178/ \
