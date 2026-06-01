@@ -10,11 +10,24 @@ def apply_schema(db_path: Path):
     conn.close()
 
 
-def store_transcription(db_path: Path, filename: str, file_bytes: bytes, content_type: str, response, *, url=None):
+def store_transcription(
+    db_path: Path,
+    filename: str | None,
+    file_bytes: bytes | None,
+    content_type: str | None,
+    response,
+    *,
+    url=None,
+) -> tuple[int, int]:
     conn = sqlite3.connect(str(db_path))
     cursor = conn.cursor()
 
-    input_type = "url" if url else "file"
+    if url:
+        input_type = "url"
+    elif file_bytes is not None:
+        input_type = "file"
+    else:
+        input_type = "import"
     cursor.execute(
         """
         insert into datasette_scribe_transcriptions (url, input_type, filename, model, granularity, submitted_at, completed_at, usage)
@@ -29,11 +42,13 @@ def store_transcription(db_path: Path, filename: str, file_bytes: bytes, content
         ],
     )
     transcription_id = cursor.lastrowid
+    assert transcription_id is not None
 
-    cursor.execute(
-        "insert into datasette_scribe_audio_blobs (transcription_id, data, content_type) values (?, ?, ?)",
-        [transcription_id, file_bytes, content_type],
-    )
+    if file_bytes is not None:
+        cursor.execute(
+            "insert into datasette_scribe_audio_blobs (transcription_id, data, content_type) values (?, ?, ?)",
+            [transcription_id, file_bytes, content_type],
+        )
 
     seen_speakers = set()
     for segment in response.segments:

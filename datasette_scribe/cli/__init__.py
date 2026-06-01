@@ -1,6 +1,7 @@
 import click
 
 from .add import scribe_add
+from .import_json import scribe_import_json
 from .serve import scribe_serve
 
 
@@ -10,4 +11,5 @@ def scribe_cli():
 
 
 scribe_cli.add_command(scribe_add)
+scribe_cli.add_command(scribe_import_json)
 scribe_cli.add_command(scribe_serve)
