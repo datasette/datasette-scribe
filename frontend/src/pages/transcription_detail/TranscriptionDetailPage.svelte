@@ -63,6 +63,12 @@
   let currentTime = $state(0);
   let duration = $state(0);
   let playing = $state(false);
+  let playbackRate = $state(1);
+
+  // Keep the audio element's rate in sync with the selected multiplier.
+  $effect(() => {
+    if (audioEl) audioEl.playbackRate = playbackRate;
+  });
 
   // Speaker filter
   let filterSpeaker: string | null = $state(null);
@@ -577,8 +583,10 @@
     {entries}
     {speakerColorMap}
     {filterSpeaker}
+    {playbackRate}
     onTogglePlay={togglePlay}
     onSeek={seekTo}
+    onSetPlaybackRate={(rate) => (playbackRate = rate)}
   />
 {/if}
 
