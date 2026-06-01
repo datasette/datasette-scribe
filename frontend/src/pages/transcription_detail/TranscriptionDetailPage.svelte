@@ -21,6 +21,18 @@
   const pageData = loadPageData<TranscriptionDetailPageData>();
   const t = pageData.transcription;
   const audioUrl = pageData.audio_url;
+
+  // Sharing: the <datasette-acl-share-dialog> custom element is registered by
+  // datasette-acl-share's bundle (included via extra_js_urls on this page). We
+  // only render the Share button + modal wrapper when the current actor may
+  // manage sharing for this transcription.
+  const share = pageData.share;
+  const actor = pageData.actor;
+  const canManageShare = !!(share && share.available && share.can_manage);
+  const actorJson = actor
+    ? JSON.stringify({ id: actor.id, kind: "user", name: actor.name ?? undefined })
+    : "";
+  let shareOpen = $state(false);
   let collection: CollectionSummary | null | undefined = $state(pageData.collection);
   const allCollections = pageData.all_collections ?? [];
   let entries: TranscriptionEntry[] = $state([...(pageData.entries ?? [])]);
@@ -494,6 +506,9 @@
     </div>
   </div>
   <div class="top-bar-right">
+    {#if canManageShare}
+      <button class="btn-share" onclick={() => (shareOpen = true)}>Share</button>
+    {/if}
     {#if entries.length > 0}
       <button class="btn-copy" onclick={copyTranscript}>{copyLabel}</button>
     {/if}
@@ -565,6 +580,32 @@
     onTogglePlay={togglePlay}
     onSeek={seekTo}
   />
+{/if}
+
+{#if shareOpen && share}
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="share-backdrop" onclick={() => (shareOpen = false)}>
+    <div
+      class="share-modal"
+      role="dialog"
+      aria-label="Share transcription"
+      tabindex="-1"
+      onclick={(e) => e.stopPropagation()}
+    >
+      <datasette-acl-share-dialog
+        resource-type={share.resource_type}
+        parent={share.parent}
+        child={share.child}
+        resource-label={`Transcription #${t.id}`}
+        actor-json={actorJson}
+        features={share.features}
+      ></datasette-acl-share-dialog>
+      <div class="share-footer">
+        <button class="btn-copy" onclick={() => (shareOpen = false)}>Done</button>
+      </div>
+    </div>
+  </div>
 {/if}
 
 <style>
@@ -697,7 +738,8 @@
     flex-shrink: 0;
   }
 
-  .btn-copy {
+  .btn-copy,
+  .btn-share {
     font-size: 0.8rem;
     padding: 0.3rem 0.7rem;
     border: 1px solid #ccc;
@@ -706,8 +748,44 @@
     cursor: pointer;
     white-space: nowrap;
   }
-  .btn-copy:hover {
+  .btn-copy:hover,
+  .btn-share:hover {
     background: #f5f5f5;
+  }
+
+  .btn-share {
+    border-color: #6c63ff;
+    color: #6c63ff;
+  }
+  .btn-share:hover {
+    background: #f3f2ff;
+  }
+
+  .share-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 8vh;
+    z-index: 1000;
+  }
+
+  .share-modal {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+    width: min(540px, 92vw);
+    max-height: 80vh;
+    overflow: auto;
+    padding: 1.25rem;
+  }
+
+  .share-footer {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 1rem;
   }
 
   .layout {

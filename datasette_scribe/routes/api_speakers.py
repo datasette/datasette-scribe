@@ -11,7 +11,26 @@ from ..page_data import (
     EditResponse,
     RenameSpeakerRequest,
 )
+from ..permissions import ensure_edit
 from ..router import router, check_permission, ensure_schema
+
+
+async def _ensure_transcription_edit(datasette, request, database, tid):
+    """Require edit access on the transcription a speaker op targets."""
+    db = datasette.get_database(database)
+    owner_row = (
+        await db.execute(
+            "select created_by from datasette_scribe_transcriptions where id = ?",
+            [tid],
+        )
+    ).first()
+    await ensure_edit(
+        datasette,
+        request.actor,
+        database,
+        tid,
+        owner_row["created_by"] if owner_row else None,
+    )
 
 
 @router.POST(
@@ -28,6 +47,7 @@ async def api_create_speaker(
     await ensure_schema(datasette, body.database)
     db = datasette.get_database(body.database)
     tid = int(transcription_id)
+    await _ensure_transcription_edit(datasette, request, body.database, tid)
 
     try:
         await db.execute_write(
@@ -63,6 +83,7 @@ async def api_combine_speakers(
     await ensure_schema(datasette, body.database)
     db = datasette.get_database(body.database)
     tid = int(transcription_id)
+    await _ensure_transcription_edit(datasette, request, body.database, tid)
 
     count_row = (
         await db.execute(
@@ -125,6 +146,7 @@ async def api_delete_speaker(
     await ensure_schema(datasette, body.database)
     db = datasette.get_database(body.database)
     tid = int(transcription_id)
+    await _ensure_transcription_edit(datasette, request, body.database, tid)
 
     # Check if speaker is used in other transcriptions
     used_row = (
@@ -198,7 +220,11 @@ async def api_rename_speaker(
     sid = int(speaker_id)
 
     # Get current speaker name
-    row = (await db.execute("select name from datasette_scribe_speakers where id = ?", [sid])).first()
+    row = (
+        await db.execute(
+            "select name from datasette_scribe_speakers where id = ?", [sid]
+        )
+    ).first()
     if row is None:
         return Response.json(
             EditResponse(ok=False, error="Speaker not found").model_dump(), status=404
@@ -217,7 +243,9 @@ async def api_rename_speaker(
 
     # Check if new name already exists
     existing = (
-        await db.execute("select id from datasette_scribe_speakers where name = ?", [new_name])
+        await db.execute(
+            "select id from datasette_scribe_speakers where name = ?", [new_name]
+        )
     ).first()
     if existing:
         return Response.json(
@@ -228,7 +256,9 @@ async def api_rename_speaker(
         )
 
     # Update the speaker name
-    await db.execute_write("update datasette_scribe_speakers set name = ? where id = ?", [new_name, sid])
+    await db.execute_write(
+        "update datasette_scribe_speakers set name = ? where id = ?", [new_name, sid]
+    )
 
     # Update all entries referencing old name (global, does NOT update original_speaker_id)
     await db.execute_write(

@@ -32,3 +32,16 @@ def check_permission():
 async def ensure_schema(datasette, database: str):
     db = datasette.get_database(database)
     await db.execute_write_script(SCHEMA_SQL)
+    # Migration: `created_by` was added after initial release. CREATE TABLE IF
+    # NOT EXISTS won't add it to pre-existing tables, so feature-detect and
+    # ALTER. Safe to run every page load (the column check short-circuits).
+    columns = [
+        row["name"]
+        for row in (
+            await db.execute("PRAGMA table_info(datasette_scribe_transcriptions)")
+        ).rows
+    ]
+    if "created_by" not in columns:
+        await db.execute_write(
+            "ALTER TABLE datasette_scribe_transcriptions ADD COLUMN created_by text"
+        )

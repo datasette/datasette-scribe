@@ -8,7 +8,13 @@ create table if not exists datasette_scribe_transcriptions (
     submitted_at text not null,
     completed_at text,
     error text,
-    usage text
+    usage text,
+    -- actor["id"] of the creator, set on authenticated web creates. NULL for
+    -- anonymous web creates and CLI (add / import-json) creates. Ownership +
+    -- private-by-default sharing key off this (see permissions.py): a non-NULL
+    -- created_by gets a seeded acl Manager grant; NULL transcriptions fall back
+    -- to the global datasette_scribe_scribe permission.
+    created_by text
 );
 
 -- TODO: Remove audio_blobs table when S3 storage is implemented

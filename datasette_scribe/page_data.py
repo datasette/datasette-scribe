@@ -14,6 +14,7 @@ class TranscriptionSummary(BaseModel):
     entries_count: int = 0
     duration: float | None = None
     speakers_count: int = 0
+    created_by: str | None = None
 
 
 class CollectionSummary(BaseModel):
@@ -63,6 +64,27 @@ class TranscriptionEdit(BaseModel):
     entry_id: int | None = None
 
 
+class ActorInfo(BaseModel):
+    id: str
+    name: str | None = None
+
+
+# Everything the <datasette-acl-share-dialog> needs to manage sharing for a
+# transcription, plus per-actor capability flags driving UI affordances.
+class ShareInfo(BaseModel):
+    # acl resource identity: resource_type + parent (database) + child (id).
+    resource_type: str
+    parent: str
+    child: str
+    # CSV of enabled dialog sections (people,agents,groups,public) derived from
+    # datasette-acl-share's capability probe. Empty when sharing is unavailable.
+    features: str = ""
+    # Whether the current actor may open the share dialog (manage sharing).
+    can_manage: bool = False
+    # Whether sharing is available at all (datasette-acl + acl-share installed).
+    available: bool = False
+
+
 # /$db/-/scribe/transcription/$id — detail page for a single transcription with entries
 class TranscriptionDetailPageData(BaseModel):
     database_name: str
@@ -74,6 +96,9 @@ class TranscriptionDetailPageData(BaseModel):
     edits: list[TranscriptionEdit] = []
     collection: CollectionSummary | None = None
     all_collections: list[CollectionSummary] = []
+    actor: ActorInfo | None = None
+    can_edit: bool = True
+    share: ShareInfo | None = None
 
 
 # /$db/-/scribe/new — form to submit a new audio URL for transcription

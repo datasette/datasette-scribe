@@ -18,6 +18,7 @@ export type Error = string | null;
 export type EntriesCount = number;
 export type Duration = number | null;
 export type SpeakersCount = number;
+export type CreatedBy = string | null;
 export type AudioUrl = string | null;
 export type Id1 = number;
 export type Start = number;
@@ -44,6 +45,15 @@ export type Name1 = string;
 export type Description = string;
 export type CreatedAt1 = string;
 export type AllCollections = CollectionSummary[];
+export type Id5 = string;
+export type Name2 = string | null;
+export type CanEdit = boolean;
+export type ResourceType = string;
+export type Parent = string;
+export type Child = string;
+export type Features = string;
+export type CanManage = boolean;
+export type Available = boolean;
 
 export interface TranscriptionDetailPageData {
   database_name: DatabaseName;
@@ -55,6 +65,9 @@ export interface TranscriptionDetailPageData {
   edits?: Edits;
   collection?: CollectionSummary | null;
   all_collections?: AllCollections;
+  actor?: ActorInfo | null;
+  can_edit?: CanEdit;
+  share?: ShareInfo | null;
   [k: string]: unknown;
 }
 export interface TranscriptionSummary {
@@ -70,6 +83,7 @@ export interface TranscriptionSummary {
   entries_count?: EntriesCount;
   duration?: Duration;
   speakers_count?: SpeakersCount;
+  created_by?: CreatedBy;
   [k: string]: unknown;
 }
 export interface TranscriptionEntry {
@@ -102,5 +116,19 @@ export interface CollectionSummary {
   name: Name1;
   description?: Description;
   created_at?: CreatedAt1;
+  [k: string]: unknown;
+}
+export interface ActorInfo {
+  id: Id5;
+  name?: Name2;
+  [k: string]: unknown;
+}
+export interface ShareInfo {
+  resource_type: ResourceType;
+  parent: Parent;
+  child: Child;
+  features?: Features;
+  can_manage?: CanManage;
+  available?: Available;
   [k: string]: unknown;
 }

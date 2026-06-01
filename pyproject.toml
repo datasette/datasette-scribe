@@ -26,8 +26,24 @@ CI = "https://github.com/datasette/datasette-scribe/actions"
 test = ["pytest", "pytest-asyncio"]
 
 [dependency-groups]
-dev = ["pytest", "pytest-asyncio", "ruff>=0.15.0"]
+# datasette-acl (sharing-v2) backs per-transcription sharing and
+# datasette-acl-share ships the <datasette-acl-share-dialog> bundle. Both are
+# soft dependencies: scribe imports them defensively (see permissions.py) and
+# falls back to the global datasette_scribe_scribe permission when they are
+# absent. They are unpublished sibling checkouts, referenced as editable path
+# sources below for local dev + tests.
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "ruff>=0.15.0",
+    "datasette-acl",
+    "datasette-acl-share",
+]
 yt = ["yt-dlp"]
+
+[tool.uv.sources]
+datasette-acl = { path = "../datasette-acl", editable = true }
+datasette-acl-share = { path = "../datasette-acl-share", editable = true }
 
 [build-system]
 requires = ["setuptools"]

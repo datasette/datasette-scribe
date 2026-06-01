@@ -22,6 +22,7 @@ export type Error = string | null;
 export type EntriesCount = number;
 export type Duration = number | null;
 export type SpeakersCount = number;
+export type CreatedBy = string | null;
 export type Transcriptions = TranscriptionSummary[];
 export type Collections = CollectionWithTranscriptions[];
 export type UncollectedTranscriptions = TranscriptionSummary[];
@@ -53,5 +54,6 @@ export interface TranscriptionSummary {
   entries_count?: EntriesCount;
   duration?: Duration;
   speakers_count?: SpeakersCount;
+  created_by?: CreatedBy;
   [k: string]: unknown;
 }
