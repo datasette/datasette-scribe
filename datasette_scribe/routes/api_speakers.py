@@ -13,6 +13,7 @@ from ..page_data import (
 )
 from ..permissions import ensure_edit
 from ..router import router, check_permission, ensure_schema
+from ._scope import scope_columns, scope_of_transcript
 
 
 async def _ensure_transcription_edit(datasette, request, database, tid):
@@ -49,14 +50,21 @@ async def api_create_speaker(
     tid = int(transcription_id)
     await _ensure_transcription_edit(datasette, request, body.database, tid)
 
+    # Speakers are scoped to the transcript's scope (its collection, or the
+    # transcript itself when standalone). User-created speakers are configured.
+    scope = await scope_of_transcript(db, tid)
+    col, ref = scope_columns(scope)
     try:
         await db.execute_write(
-            "insert into datasette_scribe_speakers (name, is_original) values (?, 0)",
-            [body.name],
+            f"insert into datasette_scribe_speakers ({col}, name, is_configured, configured_at)"
+            f" values (?, ?, 1, datetime('now', 'subsec'))",
+            [ref, body.name],
         )
     except Exception:
         return Response.json(
-            EditResponse(ok=False, error="Speaker already exists").model_dump(),
+            EditResponse(
+                ok=False, error="A speaker with that name already exists in this scope"
+            ).model_dump(),
             status=400,
         )
 

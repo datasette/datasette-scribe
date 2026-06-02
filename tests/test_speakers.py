@@ -46,3 +46,40 @@ async def test_extraction_creates_scoped_speakers(tmp_path):
     s1 = next(s["id"] for s in speakers if s["name"] == "Speaker 1")
     assert erows[0]["speaker_id"] == s1 and erows[2]["speaker_id"] == s1
     assert erows[0]["original_speaker_id"] == "Speaker 1"  # raw label preserved
+
+
+@pytest.mark.asyncio
+async def test_create_speaker_scoped_unique_per_scope(tmp_path):
+    ds, db = await scribe_db(tmp_path)
+    # two collections, each can hold an "Alice"
+    c1 = await new_collection(db, "C1")
+    c2 = await new_collection(db, "C2")
+    t1 = await new_transcription(db)
+    t2 = await new_transcription(db)
+    await add_to_collection(db, c1, t1)
+    await add_to_collection(db, c2, t2)
+
+    r1 = await client_post(
+        ds,
+        f"/-/api/scribe/transcription/{t1}/speakers/create",
+        {"database": DB, "name": "Alice"},
+    )
+    r2 = await client_post(
+        ds,
+        f"/-/api/scribe/transcription/{t2}/speakers/create",
+        {"database": DB, "name": "Alice"},
+    )
+    assert r1.json()["ok"] and r2.json()["ok"]  # same name, different scopes: OK
+    # duplicate in same scope rejected
+    dup = await client_post(
+        ds,
+        f"/-/api/scribe/transcription/{t1}/speakers/create",
+        {"database": DB, "name": "Alice"},
+    )
+    assert dup.status_code == 400
+    rows = (
+        await db.execute(
+            "select collection_id, name from datasette_scribe_speakers where name='Alice'"
+        )
+    ).rows
+    assert sorted(r["collection_id"] for r in rows) == sorted([c1, c2])
