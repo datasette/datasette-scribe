@@ -255,37 +255,86 @@ async def seed_owner_grant(datasette, database, transcription_id, created_by) ->
     )
 
 
+async def seed_collection_owner_grant(
+    datasette, database, collection_id, created_by
+) -> None:
+    """Grant ``created_by`` the Manager role on a freshly created collection.
+
+    Mirror of :func:`seed_owner_grant` for the collection resource. No-op for
+    anonymous creates and when acl is not installed.
+    """
+    if not created_by or _acl_grant is None:
+        return
+    await _acl_grant(
+        datasette,
+        SCRIBE_COLLECTION_RESOURCE_TYPE,
+        str(database),
+        str(collection_id),
+        actor_id=str(created_by),
+        actions=COLLECTION_OWNER_ACTIONS,
+        by_actor=str(created_by),
+    )
+
+
 async def _has_global_access(datasette, actor) -> bool:
     return await datasette.allowed(action=SCRIBE_ACCESS_NAME, actor=actor)
 
 
-async def _allowed_resource(
-    datasette, actor, action, database, transcription_id
-) -> bool:
-    """True if acl grants ``action`` to ``actor`` on this transcription.
+async def _scope_resource(datasette, database, transcription_id):
+    """Return ``(resource, (view, edit, manage))`` governing this transcription.
+
+    A collected transcript resolves to its :class:`ScribeCollectionResource` and
+    the collection action triple; a standalone transcript resolves to its
+    :class:`ScribeTranscriptionResource` and the transcription action triple
+    (today's behaviour). The right resource is computed live from current
+    membership, so a move re-points the check the instant membership changes.
+    """
+    db = datasette.get_database(database)
+    row = (
+        await db.execute(
+            "select collection_id from datasette_scribe_collection_transcriptions"
+            " where transcription_id = ?",
+            [transcription_id],
+        )
+    ).first()
+    if row:
+        return ScribeCollectionResource(database, row["collection_id"]), (
+            ACTION_COLLECTION_VIEW,
+            ACTION_COLLECTION_EDIT,
+            ACTION_COLLECTION_MANAGE,
+        )
+    return ScribeTranscriptionResource(database, transcription_id), (
+        ACTION_VIEW,
+        ACTION_EDIT,
+        ACTION_MANAGE,
+    )
+
+
+async def _allowed(datasette, actor, action, resource) -> bool:
+    """True if acl grants ``action`` to ``actor`` on ``resource``.
 
     Returns False (rather than erroring) when acl is not installed, because no
     grants can exist — callers then rely on the orphan/global fallback.
     """
     if _acl_grant is None:
         return False
-    return await datasette.allowed(
-        action=action,
-        resource=ScribeTranscriptionResource(database, transcription_id),
-        actor=actor,
-    )
+    return await datasette.allowed(action=action, resource=resource, actor=actor)
 
 
 async def can_view(datasette, actor, database, transcription_id, created_by) -> bool:
     """Whether ``actor`` may view this transcription.
 
-    Allowed if acl grants ``scribe-view`` (owner or a share), OR the
+    Allowed if acl grants view on the transcription's *scope* (its collection
+    when collected, else the transcription itself — owner or a share), OR the
     transcription is an orphan (``created_by`` is None) and the actor holds the
-    global ``datasette_scribe_scribe`` permission.
+    global ``datasette_scribe_scribe`` permission. The orphan fallback is a
+    property of the transcription row independent of scope: a collected orphan
+    still falls back to global view/edit, matching CLI/legacy visibility.
     """
-    if await _allowed_resource(
-        datasette, actor, ACTION_VIEW, database, transcription_id
-    ):
+    resource, (av, _ae, _am) = await _scope_resource(
+        datasette, database, transcription_id
+    )
+    if await _allowed(datasette, actor, av, resource):
         return True
     if created_by is None and await _has_global_access(datasette, actor):
         return True
@@ -294,9 +343,10 @@ async def can_view(datasette, actor, database, transcription_id, created_by) -> 
 
 async def can_edit(datasette, actor, database, transcription_id, created_by) -> bool:
     """Whether ``actor`` may edit this transcription (same shape as :func:`can_view`)."""
-    if await _allowed_resource(
-        datasette, actor, ACTION_EDIT, database, transcription_id
-    ):
+    resource, (_av, ae, _am) = await _scope_resource(
+        datasette, database, transcription_id
+    )
+    if await _allowed(datasette, actor, ae, resource):
         return True
     if created_by is None and await _has_global_access(datasette, actor):
         return True
@@ -304,19 +354,37 @@ async def can_edit(datasette, actor, database, transcription_id, created_by) -> 
 
 
 async def can_manage(datasette, actor, database, transcription_id) -> bool:
-    """Whether ``actor`` may manage sharing for this transcription.
+    """Whether ``actor`` may manage sharing for this transcription's scope.
 
-    Allowed if acl grants the ``scribe-manage`` action on this resource (the
-    owner holds it via the seeded owner grant), OR the actor holds acl's global
-    ``datasette-acl`` admin permission. Returns False when acl is not installed
-    (no sharing without acl). This mirrors acl's own share-API manage gate but
-    checks the manage action directly, so it does not depend on the role
-    registry being populated (see OWNER_ACTIONS).
+    Allowed if acl grants the scope's manage action (collection-manage for a
+    collected transcript, scribe-manage for a standalone one — the owner holds
+    it via the seeded grant), OR the actor holds acl's global ``datasette-acl``
+    admin permission. False when acl is not installed.
     """
     if _acl_grant is None:
         return False
-    if await _allowed_resource(
-        datasette, actor, ACTION_MANAGE, database, transcription_id
+    resource, (_av, _ae, am) = await _scope_resource(
+        datasette, database, transcription_id
+    )
+    if await _allowed(datasette, actor, am, resource):
+        return True
+    return await datasette.allowed(action=ACL_ADMIN_PERMISSION, actor=actor)
+
+
+async def can_manage_collection(datasette, actor, database, collection_id) -> bool:
+    """Whether ``actor`` may manage sharing for a collection directly.
+
+    Used by the collection share dialog (T07) and move semantics (T05). Checks
+    the collection-manage action on :class:`ScribeCollectionResource` plus acl's
+    global admin fallback. False when acl is not installed.
+    """
+    if _acl_grant is None:
+        return False
+    if await _allowed(
+        datasette,
+        actor,
+        ACTION_COLLECTION_MANAGE,
+        ScribeCollectionResource(database, collection_id),
     ):
         return True
     return await datasette.allowed(action=ACL_ADMIN_PERMISSION, actor=actor)
@@ -335,19 +403,26 @@ async def ensure_edit(datasette, actor, database, transcription_id, created_by) 
 async def filter_visible_ids(datasette, actor, database, rows) -> set[int]:
     """Return the subset of transcription ids in ``rows`` that ``actor`` may view.
 
-    ``rows`` is any iterable of mappings exposing ``id`` and ``created_by``.
-    Computes global access once, then applies :func:`can_view` per row. Orphans
-    are resolved by the single global check; owned rows each get one acl lookup
-    (fine for the dozens-of-transcriptions listings scribe renders today).
+    ``rows`` is any iterable of mappings exposing ``id`` and ``created_by``, and
+    optionally ``collection_id`` (when present and non-NULL the row is checked
+    against its collection resource instead of the transcription resource — see
+    :func:`_scope_resource`). Callers that join ``collection_transcriptions``
+    expose ``collection_id``; those that don't get the standalone behaviour.
+    Orphans (``created_by`` is None) fall back to a single global check.
     """
     global_access = await _has_global_access(datasette, actor)
     visible: set[int] = set()
     for row in rows:
-        created_by = row["created_by"]
-        if created_by is None:
-            if global_access:
-                visible.add(row["id"])
+        cid = row["collection_id"] if "collection_id" in row.keys() else None
+        if row["created_by"] is None and global_access:
+            visible.add(row["id"])
             continue
-        if await _allowed_resource(datasette, actor, ACTION_VIEW, database, row["id"]):
+        if cid is not None:
+            resource = ScribeCollectionResource(database, cid)
+            action = ACTION_COLLECTION_VIEW
+        else:
+            resource = ScribeTranscriptionResource(database, row["id"])
+            action = ACTION_VIEW
+        if await _allowed(datasette, actor, action, resource):
             visible.add(row["id"])
     return visible

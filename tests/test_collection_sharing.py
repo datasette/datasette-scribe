@@ -90,3 +90,40 @@ async def test_collection_actions_resolve(tmp_path):
         resource=P.ScribeCollectionResource(DB, cid),
         actor={"id": "bob"},
     )
+
+
+@pytest.mark.asyncio
+async def test_collection_view_grant_makes_members_visible(tmp_path):
+    ds = await _make_datasette(tmp_path)
+    cid = await _insert_collection(ds, "C")
+    t1 = await _insert_transcription(ds, created_by="alice")
+    t2 = await _insert_transcription(ds, created_by="alice")
+    await _add_to_collection(ds, cid, t1)
+    await _add_to_collection(ds, cid, t2)
+    await permissions.seed_collection_owner_grant(ds, DB, cid, "alice")
+
+    from datasette_acl.grants import grant
+
+    await grant(
+        ds,
+        permissions.SCRIBE_COLLECTION_RESOURCE_TYPE,
+        DB,
+        str(cid),
+        actor_id="bob",
+        actions=[permissions.ACTION_COLLECTION_VIEW],
+        by_actor="alice",
+    )
+
+    # bob sees BOTH members via the single collection grant
+    assert await permissions.can_view(ds, {"id": "bob"}, DB, t1, "alice")
+    assert await permissions.can_view(ds, {"id": "bob"}, DB, t2, "alice")
+    assert not await permissions.can_edit(ds, {"id": "bob"}, DB, t1, "alice")
+
+
+@pytest.mark.asyncio
+async def test_standalone_unaffected(tmp_path):
+    ds = await _make_datasette(tmp_path)
+    t = await _insert_transcription(ds, created_by="alice")
+    await permissions.seed_owner_grant(ds, DB, t, "alice")
+    assert await permissions.can_view(ds, {"id": "alice"}, DB, t, "alice")
+    assert not await permissions.can_view(ds, {"id": "bob"}, DB, t, "alice")
