@@ -148,7 +148,7 @@
         "speaker_id": {
           "anyOf": [
             {
-              "type": "string"
+              "type": "integer"
             },
             {
               "type": "null"
@@ -205,14 +205,19 @@
           "title": "Name",
           "type": "string"
         },
-        "is_original": {
-          "default": true,
-          "title": "Is Original",
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "is_configured": {
+          "default": false,
+          "title": "Is Configured",
           "type": "boolean"
         },
-        "used_in_other_transcriptions": {
+        "has_photo": {
           "default": false,
-          "title": "Used In Other Transcriptions",
+          "title": "Has Photo",
           "type": "boolean"
         }
       },

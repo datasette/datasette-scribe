@@ -299,7 +299,7 @@ export interface paths {
                          * Speaker Id
                          * @default null
                          */
-                        speaker_id?: string | null;
+                        speaker_id?: number | null;
                     };
                 };
             };
@@ -318,6 +318,11 @@ export interface paths {
                              * @default null
                              */
                             error: string | null;
+                            /**
+                             * Unlinked Entries
+                             * @default null
+                             */
+                            unlinked_entries: number | null;
                         };
                     };
                 };
@@ -372,6 +377,11 @@ export interface paths {
                              * @default null
                              */
                             error: string | null;
+                            /**
+                             * Unlinked Entries
+                             * @default null
+                             */
+                            unlinked_entries: number | null;
                         };
                     };
                 };
@@ -406,10 +416,10 @@ export interface paths {
                     "application/json": {
                         /** Database */
                         database: string;
-                        /** From Speaker */
-                        from_speaker: string;
-                        /** To Speaker */
-                        to_speaker: string;
+                        /** From Speaker Id */
+                        from_speaker_id: number;
+                        /** To Speaker Id */
+                        to_speaker_id: number;
                     };
                 };
             };
@@ -428,6 +438,11 @@ export interface paths {
                              * @default null
                              */
                             error: string | null;
+                            /**
+                             * Unlinked Entries
+                             * @default null
+                             */
+                            unlinked_entries: number | null;
                         };
                     };
                 };
@@ -462,8 +477,8 @@ export interface paths {
                     "application/json": {
                         /** Database */
                         database: string;
-                        /** Speaker Name */
-                        speaker_name: string;
+                        /** Speaker Id */
+                        speaker_id: number;
                     };
                 };
             };
@@ -482,6 +497,11 @@ export interface paths {
                              * @default null
                              */
                             error: string | null;
+                            /**
+                             * Unlinked Entries
+                             * @default null
+                             */
+                            unlinked_entries: number | null;
                         };
                     };
                 };
@@ -536,11 +556,178 @@ export interface paths {
                              * @default null
                              */
                             error: string | null;
+                            /**
+                             * Unlinked Entries
+                             * @default null
+                             */
+                            unlinked_entries: number | null;
                         };
                     };
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/-/api/scribe/speakers/{speaker_id}/update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    speaker_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Database */
+                        database: string;
+                        /**
+                         * Name
+                         * @default null
+                         */
+                        name?: string | null;
+                        /**
+                         * Description
+                         * @default null
+                         */
+                        description?: string | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Ok */
+                            ok: boolean;
+                            /**
+                             * Error
+                             * @default null
+                             */
+                            error: string | null;
+                            /**
+                             * Unlinked Entries
+                             * @default null
+                             */
+                            unlinked_entries: number | null;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/-/api/scribe/speakers/{speaker_id}/photo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    speaker_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Database */
+                        database: string;
+                        /** File Data */
+                        file_data: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Ok */
+                            ok: boolean;
+                            /**
+                             * Error
+                             * @default null
+                             */
+                            error: string | null;
+                            /**
+                             * Unlinked Entries
+                             * @default null
+                             */
+                            unlinked_entries: number | null;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/{database}/-/api/scribe/speakers/{speaker_id}/photo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    database: string;
+                    speaker_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -593,6 +780,11 @@ export interface paths {
                              * @default null
                              */
                             error: string | null;
+                            /**
+                             * Unlinked Entries
+                             * @default null
+                             */
+                            unlinked_entries: number | null;
                         };
                     };
                 };
@@ -652,6 +844,11 @@ export interface paths {
                              * @default null
                              */
                             error: string | null;
+                            /**
+                             * Unlinked Entries
+                             * @default null
+                             */
+                            unlinked_entries: number | null;
                         };
                     };
                 };
@@ -711,6 +908,11 @@ export interface paths {
                              * @default null
                              */
                             error: string | null;
+                            /**
+                             * Unlinked Entries
+                             * @default null
+                             */
+                            unlinked_entries: number | null;
                         };
                     };
                 };
@@ -765,6 +967,11 @@ export interface paths {
                              * @default null
                              */
                             error: string | null;
+                            /**
+                             * Unlinked Entries
+                             * @default null
+                             */
+                            unlinked_entries: number | null;
                         };
                     };
                 };
@@ -814,6 +1021,78 @@ export interface paths {
                         "application/json": {
                             /** Ok */
                             ok: boolean;
+                            /**
+                             * Error
+                             * @default null
+                             */
+                            error: string | null;
+                            /**
+                             * Unlinked Entries
+                             * @default null
+                             */
+                            unlinked_entries: number | null;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/-/api/scribe/transcription/{transcription_id}/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    transcription_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Database */
+                        database: string;
+                        /**
+                         * Collection Id
+                         * @default null
+                         */
+                        collection_id?: number | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Ok */
+                            ok: boolean;
+                            /**
+                             * Unlinked Entries
+                             * @default 0
+                             */
+                            unlinked_entries: number;
+                            /**
+                             * Collection Id
+                             * @default null
+                             */
+                            collection_id: number | null;
                             /**
                              * Error
                              * @default null

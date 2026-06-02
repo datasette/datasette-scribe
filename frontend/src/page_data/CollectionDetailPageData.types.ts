@@ -25,7 +25,10 @@ export type SpeakersCount = number;
 export type CreatedBy = string | null;
 export type Transcriptions = TranscriptionSummary[];
 export type AvailableTranscriptions = TranscriptionSummary[];
+export type Id2 = number;
 export type Name1 = string;
+export type Description1 = string;
+export type HasPhoto = boolean;
 export type EntryCount = number;
 export type TranscriptionCount = number;
 export type Speakers = CollectionSpeakerStat[];
@@ -62,7 +65,10 @@ export interface TranscriptionSummary {
   [k: string]: unknown;
 }
 export interface CollectionSpeakerStat {
+  id: Id2;
   name: Name1;
+  description?: Description1;
+  has_photo?: HasPhoto;
   entry_count: EntryCount;
   transcription_count: TranscriptionCount;
   [k: string]: unknown;

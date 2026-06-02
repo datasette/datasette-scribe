@@ -23,15 +23,16 @@ export type AudioUrl = string | null;
 export type Id1 = number;
 export type Start = number;
 export type End = number;
-export type SpeakerId = string | null;
+export type SpeakerId = number | null;
 export type Text = string;
 export type OriginalSpeakerId = string | null;
 export type OriginalText = string | null;
 export type Entries = TranscriptionEntry[];
 export type Id2 = number;
 export type Name = string;
-export type IsOriginal = boolean;
-export type UsedInOtherTranscriptions = boolean;
+export type Description = string;
+export type IsConfigured = boolean;
+export type HasPhoto = boolean;
 export type Speakers = TranscriptionSpeaker[];
 export type AllSpeakers = TranscriptionSpeaker[];
 export type Id3 = number;
@@ -42,7 +43,7 @@ export type EntryId = number | null;
 export type Edits = TranscriptionEdit[];
 export type Id4 = number;
 export type Name1 = string;
-export type Description = string;
+export type Description1 = string;
 export type CreatedAt1 = string;
 export type AllCollections = CollectionSummary[];
 export type Id5 = string;
@@ -99,8 +100,9 @@ export interface TranscriptionEntry {
 export interface TranscriptionSpeaker {
   id: Id2;
   name: Name;
-  is_original?: IsOriginal;
-  used_in_other_transcriptions?: UsedInOtherTranscriptions;
+  description?: Description;
+  is_configured?: IsConfigured;
+  has_photo?: HasPhoto;
   [k: string]: unknown;
 }
 export interface TranscriptionEdit {
@@ -114,7 +116,7 @@ export interface TranscriptionEdit {
 export interface CollectionSummary {
   id: Id4;
   name: Name1;
-  description?: Description;
+  description?: Description1;
   created_at?: CreatedAt1;
   [k: string]: unknown;
 }

@@ -2,9 +2,23 @@
   "$defs": {
     "CollectionSpeakerStat": {
       "properties": {
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
         "name": {
           "title": "Name",
           "type": "string"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "has_photo": {
+          "default": false,
+          "title": "Has Photo",
+          "type": "boolean"
         },
         "entry_count": {
           "title": "Entry Count",
@@ -16,6 +30,7 @@
         }
       },
       "required": [
+        "id",
         "name",
         "entry_count",
         "transcription_count"
