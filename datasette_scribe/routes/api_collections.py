@@ -9,7 +9,12 @@ from ..page_data import (
     EditResponse,
     UpdateCollectionRequest,
 )
+from ..permissions import seed_collection_owner_grant
 from ..router import router, check_permission, ensure_schema
+
+
+def _actor_id(request):
+    return request.actor.get("id") if request.actor else None
 
 
 @router.POST("/-/api/scribe/collections/create$", output=EditResponse)
@@ -20,10 +25,11 @@ async def api_create_collection(
     await ensure_schema(datasette, body.database)
     db = datasette.get_database(body.database)
 
+    created_by = _actor_id(request)
     try:
-        await db.execute_write(
-            "insert into datasette_scribe_collections (name, description) values (?, ?)",
-            [body.name.strip(), body.description],
+        result = await db.execute_write(
+            "insert into datasette_scribe_collections (name, description, created_by) values (?, ?, ?)",
+            [body.name.strip(), body.description, created_by],
         )
     except Exception:
         return Response.json(
@@ -32,6 +38,13 @@ async def api_create_collection(
             ).model_dump(),
             status=400,
         )
+
+    # Private by default: seed the creator as Manager (owner) of the collection,
+    # so its members are governed by the creator's grant. No-op for anonymous
+    # creates / when acl is absent.
+    await seed_collection_owner_grant(
+        datasette, body.database, result.lastrowid, created_by
+    )
 
     return Response.json(EditResponse(ok=True).model_dump())
 

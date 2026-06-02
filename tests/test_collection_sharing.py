@@ -127,3 +127,22 @@ async def test_standalone_unaffected(tmp_path):
     await permissions.seed_owner_grant(ds, DB, t, "alice")
     assert await permissions.can_view(ds, {"id": "alice"}, DB, t, "alice")
     assert not await permissions.can_view(ds, {"id": "bob"}, DB, t, "alice")
+
+
+@pytest.mark.asyncio
+async def test_creator_owns_collection(tmp_path):
+    ds = await _make_datasette(tmp_path)
+    resp = await ds.client.post(
+        "/-/api/scribe/collections/create",
+        json={"database": DB, "name": "C"},
+        cookies=_cookies(ds, "alice"),
+    )
+    assert resp.json()["ok"]
+    cid = (
+        await ds.get_database(DB).execute(
+            "select id, created_by from datasette_scribe_collections where name='C'"
+        )
+    ).first()
+    assert cid["created_by"] == "alice"
+    assert await permissions.can_manage_collection(ds, {"id": "alice"}, DB, cid["id"])
+    assert not await permissions.can_manage_collection(ds, {"id": "bob"}, DB, cid["id"])
