@@ -7,11 +7,16 @@ from .routes import pages, api_transcriptions, api_speakers, api_collections
 from .router import router, SCRIBE_ACCESS_NAME
 from . import permissions
 from .permissions import (
+    ACTION_COLLECTION_EDIT,
+    ACTION_COLLECTION_MANAGE,
+    ACTION_COLLECTION_VIEW,
     ACTION_EDIT,
     ACTION_MANAGE,
     ACTION_VIEW,
+    ScribeCollectionResource,
     ScribeTranscriptionResource,
     scribe_acl_roles,
+    scribe_collection_acl_roles,
 )
 from .cli import scribe_cli
 
@@ -85,6 +90,25 @@ def register_actions(datasette):
             resource_class=ScribeTranscriptionResource,
             also_requires=ACTION_VIEW,
         ),
+        # Per-collection actions, resolved against grants on
+        # ScribeCollectionResource. A collected transcript inherits these.
+        Action(
+            name=ACTION_COLLECTION_VIEW,
+            description="View a collection",
+            resource_class=ScribeCollectionResource,
+        ),
+        Action(
+            name=ACTION_COLLECTION_EDIT,
+            description="Edit a collection",
+            resource_class=ScribeCollectionResource,
+            also_requires=ACTION_COLLECTION_VIEW,
+        ),
+        Action(
+            name=ACTION_COLLECTION_MANAGE,
+            description="Manage sharing for a collection",
+            resource_class=ScribeCollectionResource,
+            also_requires=ACTION_COLLECTION_VIEW,
+        ),
     ]
 
 
@@ -92,7 +116,7 @@ def register_actions(datasette):
 def datasette_acl_roles(datasette):
     # Friendly Viewer / Editor / Manager roles for the share dialog. No-op when
     # datasette-acl is not installed.
-    return scribe_acl_roles()
+    return scribe_acl_roles() + scribe_collection_acl_roles()
 
 
 @hookimpl

@@ -153,6 +153,87 @@ def scribe_acl_roles():
     ]
 
 
+# --- Collection-scoped sharing -------------------------------------------------
+#
+# A collected transcript is governed by its collection's ACL rather than a
+# per-transcription grant. The collection is its own acl resource type so the
+# share dialog and grants operate at the collection level; scope resolution
+# (_scope_resource) decides which resource a transcription check routes to.
+
+SCRIBE_COLLECTION_RESOURCE_TYPE = "scribe-collection"
+
+ACTION_COLLECTION_VIEW = "scribe-collection-view"
+ACTION_COLLECTION_EDIT = "scribe-collection-edit"
+ACTION_COLLECTION_MANAGE = "scribe-collection-manage"
+COLLECTION_OWNER_ACTIONS = [
+    ACTION_COLLECTION_VIEW,
+    ACTION_COLLECTION_EDIT,
+    ACTION_COLLECTION_MANAGE,
+]
+
+
+class ScribeCollectionsParent(Resource):
+    """Parent level for :class:`ScribeCollectionResource` (the database name)."""
+
+    name = "scribe-collections-parent"
+    parent_class = None
+
+    @classmethod
+    async def resources_sql(cls, datasette, actor=None) -> str:
+        return "SELECT NULL AS parent, NULL AS child WHERE 0"
+
+
+class ScribeCollectionResource(Resource):
+    """A single collection, acl-backed (resource type ``scribe-collection``).
+
+    Two-level resource: ``parent`` is the database name, ``child`` is the
+    collection id (as a string). Mirrors :class:`ScribeTranscriptionResource`.
+    """
+
+    name = SCRIBE_COLLECTION_RESOURCE_TYPE
+    parent_class = ScribeCollectionsParent
+
+    def __init__(self, parent=None, child=None):
+        super().__init__(
+            parent=str(parent) if parent is not None else None,
+            child=str(child) if child is not None else None,
+        )
+
+    @classmethod
+    async def resources_sql(cls, datasette, actor=None) -> str:
+        return "SELECT NULL AS parent, NULL AS child WHERE 0"
+
+
+def scribe_collection_acl_roles():
+    """Viewer / Editor / Manager roles for ``scribe-collection``. ``[]`` w/o acl."""
+    if AclRole is None:
+        return []
+    return [
+        AclRole(
+            resource_type=SCRIBE_COLLECTION_RESOURCE_TYPE,
+            name="Viewer",
+            actions=[ACTION_COLLECTION_VIEW],
+            rank=1,
+            description="Can view the collection",
+        ),
+        AclRole(
+            resource_type=SCRIBE_COLLECTION_RESOURCE_TYPE,
+            name="Editor",
+            actions=[ACTION_COLLECTION_VIEW, ACTION_COLLECTION_EDIT],
+            rank=2,
+            description="Can view and edit the collection",
+        ),
+        AclRole(
+            resource_type=SCRIBE_COLLECTION_RESOURCE_TYPE,
+            name=ROLE_OWNER,
+            actions=COLLECTION_OWNER_ACTIONS,
+            rank=3,
+            manage=True,
+            description="Can view, edit, and manage sharing",
+        ),
+    ]
+
+
 async def seed_owner_grant(datasette, database, transcription_id, created_by) -> None:
     """Grant ``created_by`` the Manager role on a freshly created transcription.
 
