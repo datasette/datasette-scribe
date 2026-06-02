@@ -143,7 +143,7 @@ class NewTranscriptionResponse(BaseModel):
 class EditEntryRequest(BaseModel):
     database: str
     text: str | None = None
-    speaker_id: str | None = None
+    speaker_id: int | None = None
 
 
 class CreateSpeakerRequest(BaseModel):

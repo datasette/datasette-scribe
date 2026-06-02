@@ -211,6 +211,22 @@ async def api_edit_entry(
         )
 
     if body.speaker_id is not None and body.speaker_id != row["speaker_id"]:
+        # The target speaker must belong to this entry's transcript scope.
+        scope = await scope_of_transcript(db, tid)
+        col, ref = scope_columns(scope)
+        ok = (
+            await db.execute(
+                f"select 1 from datasette_scribe_speakers where id = ? and {col} = ?",
+                [body.speaker_id, ref],
+            )
+        ).first()
+        if not ok:
+            return Response.json(
+                EditResponse(
+                    ok=False, error="Speaker not in this transcript's scope"
+                ).model_dump(),
+                status=400,
+            )
         await db.execute_write(
             "update datasette_scribe_transcription_entries set speaker_id = ? where id = ?",
             [body.speaker_id, eid],

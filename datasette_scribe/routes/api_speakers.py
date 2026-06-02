@@ -227,10 +227,11 @@ async def api_rename_speaker(
     db = datasette.get_database(body.database)
     sid = int(speaker_id)
 
-    # Get current speaker name
     row = (
         await db.execute(
-            "select name from datasette_scribe_speakers where id = ?", [sid]
+            "select collection_id, transcription_id, name from datasette_scribe_speakers"
+            " where id = ?",
+            [sid],
         )
     ).first()
     if row is None:
@@ -249,32 +250,36 @@ async def api_rename_speaker(
     if old_name == new_name:
         return Response.json(EditResponse(ok=True).model_dump())
 
-    # Check if new name already exists
-    existing = (
+    # Uniqueness is per-scope: only clash with speakers in this speaker's scope.
+    col = "collection_id" if row["collection_id"] is not None else "transcription_id"
+    ref = (
+        row["collection_id"]
+        if row["collection_id"] is not None
+        else row["transcription_id"]
+    )
+    clash = (
         await db.execute(
-            "select id from datasette_scribe_speakers where name = ?", [new_name]
+            f"select 1 from datasette_scribe_speakers where {col} = ? and name = ? and id != ?",
+            [ref, new_name, sid],
         )
     ).first()
-    if existing:
+    if clash:
         return Response.json(
             EditResponse(
-                ok=False, error="A speaker with that name already exists"
+                ok=False, error="A speaker with that name already exists in this scope"
             ).model_dump(),
             status=400,
         )
 
-    # Update the speaker name
+    # With id-keyed entries, rename is just an update on the speaker row — entries
+    # already reference it by id and need no rewrite. original_speaker_id is the
+    # transcript-local raw label and is never touched.
     await db.execute_write(
-        "update datasette_scribe_speakers set name = ? where id = ?", [new_name, sid]
+        "update datasette_scribe_speakers set name = ?, is_configured = 1,"
+        " configured_at = coalesce(configured_at, datetime('now', 'subsec')) where id = ?",
+        [new_name, sid],
     )
 
-    # Update all entries referencing old name (global, does NOT update original_speaker_id)
-    await db.execute_write(
-        "update datasette_scribe_transcription_entries set speaker_id = ? where speaker_id = ?",
-        [new_name, old_name],
-    )
-
-    # Log the rename edit
     await db.execute_write(
         "insert into datasette_scribe_transcription_edits (transcription_id, entry_id, operation, detail, created_at)"
         " values (null, null, ?, ?, datetime('now', 'subsec'))",

@@ -148,3 +148,72 @@ async def test_delete_speaker_nulls_entries_and_drops_photo(tmp_path):
             [s],
         )
     ).first()["c"] == 0  # cascade
+
+
+@pytest.mark.asyncio
+async def test_rename_does_not_touch_other_scopes(tmp_path):
+    ds, db = await scribe_db(tmp_path)
+    c1 = await new_collection(db, "C1")
+    c2 = await new_collection(db, "C2")
+    s1 = await create_speaker_in_collection(db, c1, "Bob")
+    s2 = await create_speaker_in_collection(db, c2, "Bob")
+    r = await client_post(
+        ds,
+        f"/-/api/scribe/speakers/{s1}/rename",
+        {"database": DB, "new_name": "Robert"},
+    )
+    assert r.json()["ok"]
+    assert (
+        await db.execute("select name from datasette_scribe_speakers where id=?", [s1])
+    ).first()["name"] == "Robert"
+    assert (
+        await db.execute("select name from datasette_scribe_speakers where id=?", [s2])
+    ).first()["name"] == "Bob"  # untouched
+
+
+@pytest.mark.asyncio
+async def test_rename_clash_within_scope_rejected(tmp_path):
+    ds, db = await scribe_db(tmp_path)
+    c = await new_collection(db, "C")
+    a = await create_speaker_in_collection(db, c, "A")
+    b = await create_speaker_in_collection(db, c, "B")
+    r = await client_post(
+        ds, f"/-/api/scribe/speakers/{b}/rename", {"database": DB, "new_name": "A"}
+    )
+    assert r.status_code == 400
+    assert a  # silence unused
+
+
+@pytest.mark.asyncio
+async def test_reassign_entry_rejects_cross_scope_speaker(tmp_path):
+    ds, db = await scribe_db(tmp_path)
+    c1 = await new_collection(db, "C1")
+    c2 = await new_collection(db, "C2")
+    t1 = await new_transcription(db)
+    await add_to_collection(db, c1, t1)
+    foreign = await create_speaker_in_collection(db, c2, "Z")
+    eid = await add_entry_get_id(db, t1)
+    r = await client_post(
+        ds, f"/-/api/scribe/entry/{eid}/edit", {"database": DB, "speaker_id": foreign}
+    )
+    assert r.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_reassign_entry_accepts_in_scope_speaker(tmp_path):
+    ds, db = await scribe_db(tmp_path)
+    c = await new_collection(db, "C")
+    t = await new_transcription(db)
+    await add_to_collection(db, c, t)
+    s = await create_speaker_in_collection(db, c, "InScope")
+    eid = await add_entry_get_id(db, t)
+    r = await client_post(
+        ds, f"/-/api/scribe/entry/{eid}/edit", {"database": DB, "speaker_id": s}
+    )
+    assert r.json()["ok"]
+    assert (
+        await db.execute(
+            "select speaker_id from datasette_scribe_transcription_entries where id=?",
+            [eid],
+        )
+    ).first()["speaker_id"] == s
