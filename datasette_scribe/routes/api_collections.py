@@ -27,7 +27,9 @@ async def api_create_collection(
         )
     except Exception:
         return Response.json(
-            EditResponse(ok=False, error="A collection with that name already exists").model_dump(),
+            EditResponse(
+                ok=False, error="A collection with that name already exists"
+            ).model_dump(),
             status=400,
         )
 
@@ -48,7 +50,11 @@ async def api_update_collection(
     db = datasette.get_database(body.database)
     cid = int(collection_id)
 
-    row = (await db.execute("select id from datasette_scribe_collections where id = ?", [cid])).first()
+    row = (
+        await db.execute(
+            "select id from datasette_scribe_collections where id = ?", [cid]
+        )
+    ).first()
     if row is None:
         return Response.json(
             EditResponse(ok=False, error="Collection not found").model_dump(),
@@ -62,7 +68,9 @@ async def api_update_collection(
         )
     except Exception:
         return Response.json(
-            EditResponse(ok=False, error="A collection with that name already exists").model_dump(),
+            EditResponse(
+                ok=False, error="A collection with that name already exists"
+            ).model_dump(),
             status=400,
         )
 
@@ -83,14 +91,20 @@ async def api_delete_collection(
     db = datasette.get_database(body.database)
     cid = int(collection_id)
 
-    row = (await db.execute("select id from datasette_scribe_collections where id = ?", [cid])).first()
+    row = (
+        await db.execute(
+            "select id from datasette_scribe_collections where id = ?", [cid]
+        )
+    ).first()
     if row is None:
         return Response.json(
             EditResponse(ok=False, error="Collection not found").model_dump(),
             status=404,
         )
 
-    await db.execute_write("delete from datasette_scribe_collections where id = ?", [cid])
+    await db.execute_write(
+        "delete from datasette_scribe_collections where id = ?", [cid]
+    )
     return Response.json(EditResponse(ok=True).model_dump())
 
 
@@ -109,7 +123,11 @@ async def api_add_transcription_to_collection(
     db = datasette.get_database(body.database)
     cid = int(collection_id)
 
-    row = (await db.execute("select id from datasette_scribe_collections where id = ?", [cid])).first()
+    row = (
+        await db.execute(
+            "select id from datasette_scribe_collections where id = ?", [cid]
+        )
+    ).first()
     if row is None:
         return Response.json(
             EditResponse(ok=False, error="Collection not found").model_dump(),

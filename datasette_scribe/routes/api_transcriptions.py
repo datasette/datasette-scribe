@@ -14,6 +14,7 @@ from ..page_data import (
 from ..permissions import ensure_edit, ensure_view, seed_owner_grant
 from ..router import router, check_permission, ensure_schema
 from ..voxtral_api import transcribe
+from ._scope import scope_columns, scope_of_transcript, store_segments
 
 
 def _actor_id(request):
@@ -106,36 +107,7 @@ async def api_new_transcription(
         [usage_json, transcription_id],
     )
 
-    seen_speakers: set[str] = set()
-    for segment in response.segments:
-        # Prefix speaker IDs to keep them unique per transcription — the model
-        # reuses generic names like "Speaker 1" across different audio files.
-        # original_speaker_id preserves the raw value from the model.
-        scoped_speaker = (
-            f"t{transcription_id}_{segment.speaker_id}" if segment.speaker_id else None
-        )
-        await db.execute_write(
-            """
-            insert into datasette_scribe_transcription_entries
-                (transcription_id, start, end, speaker_id, text, original_text, original_speaker_id)
-            values (?, ?, ?, ?, ?, ?, ?)
-            """,
-            [
-                transcription_id,
-                segment.start,
-                segment.end,
-                scoped_speaker,
-                segment.text,
-                segment.text,
-                segment.speaker_id,
-            ],
-        )
-        if scoped_speaker and scoped_speaker not in seen_speakers:
-            seen_speakers.add(scoped_speaker)
-            await db.execute_write(
-                "insert or ignore into datasette_scribe_speakers (name, is_original) values (?, 1)",
-                [scoped_speaker],
-            )
+    await store_segments(db, transcription_id, response.segments)
 
     if body.collection_id is not None:
         await db.execute_write(

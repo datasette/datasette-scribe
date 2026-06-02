@@ -50,13 +50,23 @@ def store_transcription(
             [transcription_id, file_bytes, content_type],
         )
 
-    seen_speakers = set()
+    # Mirror of datasette_scribe.routes._scope.store_segments (sync sqlite3
+    # variant). Speakers are scoped to the freshly created standalone transcript;
+    # raw labels are unique per-transcript so no prefix is needed, and entries
+    # link to speakers by integer id. Keep the two in sync.
+    speaker_id_for: dict[str, int] = {}
     for segment in response.segments:
-        scoped_speaker = (
-            f"t{transcription_id}_{segment.speaker_id}"
-            if segment.speaker_id
-            else None
-        )
+        raw = segment.speaker_id
+        sid = None
+        if raw:
+            if raw not in speaker_id_for:
+                cursor.execute(
+                    "insert into datasette_scribe_speakers"
+                    " (transcription_id, name, is_configured) values (?, ?, 0)",
+                    [transcription_id, raw],
+                )
+                speaker_id_for[raw] = cursor.lastrowid
+            sid = speaker_id_for[raw]
         cursor.execute(
             """
             insert into datasette_scribe_transcription_entries
@@ -67,18 +77,12 @@ def store_transcription(
                 transcription_id,
                 segment.start,
                 segment.end,
-                scoped_speaker,
+                sid,
                 segment.text,
                 segment.text,
-                segment.speaker_id,
+                raw,
             ],
         )
-        if scoped_speaker and scoped_speaker not in seen_speakers:
-            seen_speakers.add(scoped_speaker)
-            cursor.execute(
-                "insert or ignore into datasette_scribe_speakers (name, is_original) values (?, 1)",
-                [scoped_speaker],
-            )
 
     conn.commit()
     conn.close()

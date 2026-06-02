@@ -30,10 +30,10 @@ create table if not exists datasette_scribe_transcription_entries (
     transcription_id integer not null references datasette_scribe_transcriptions(id),
     start real not null,
     end real not null,
-    speaker_id text,
+    speaker_id integer,              -- integer FK into datasette_scribe_speakers(id)
     text text not null,
     original_text text,
-    original_speaker_id text
+    original_speaker_id text         -- raw model label, transcript-local, untouched
 );
 
 create table if not exists datasette_scribe_transcription_edits (

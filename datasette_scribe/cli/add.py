@@ -64,7 +64,14 @@ def _download_audio_from_url(url: str) -> tuple[Path, str]:
 
 @click.command(name="add")
 @click.argument("source")
-@click.option("-d", "--database", "db_path_str", type=click.Path(), default=None, help="Database path (default: derived from source)")
+@click.option(
+    "-d",
+    "--database",
+    "db_path_str",
+    type=click.Path(),
+    default=None,
+    help="Database path (default: derived from source)",
+)
 def scribe_add(source, db_path_str):
     "Transcribe an audio file or URL and add it to a database"
 
