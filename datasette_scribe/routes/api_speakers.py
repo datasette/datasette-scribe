@@ -93,33 +93,47 @@ async def api_combine_speakers(
     tid = int(transcription_id)
     await _ensure_transcription_edit(datasette, request, body.database, tid)
 
-    count_row = (
+    # Both speakers must belong to the transcript's scope. Combine then spans
+    # the whole scope (every transcript in the collection that uses from), which
+    # is correct — it is one shared speaker.
+    scope = await scope_of_transcript(db, tid)
+    col, ref = scope_columns(scope)
+    valid = (
         await db.execute(
-            "select count(*) as cnt from datasette_scribe_transcription_entries"
-            " where transcription_id = ? and speaker_id = ?",
-            [tid, body.from_speaker],
+            f"select count(*) c from datasette_scribe_speakers"
+            f" where id in (?, ?) and {col} = ?",
+            [body.from_speaker_id, body.to_speaker_id, ref],
         )
     ).first()
-    affected = count_row["cnt"] if count_row else 0
+    if valid["c"] != 2:
+        return Response.json(
+            EditResponse(
+                ok=False, error="Both speakers must belong to this scope"
+            ).model_dump(),
+            status=400,
+        )
 
+    affected = (
+        await db.execute(
+            "select count(*) c from datasette_scribe_transcription_entries"
+            " where speaker_id = ?",
+            [body.from_speaker_id],
+        )
+    ).first()["c"]
     await db.execute_write(
         "update datasette_scribe_transcription_entries set speaker_id = ?"
-        " where transcription_id = ? and speaker_id = ?",
-        [body.to_speaker, tid, body.from_speaker],
+        " where speaker_id = ?",
+        [body.to_speaker_id, body.from_speaker_id],
     )
-
-    # Clean up from global speakers table if no entries remain globally
-    global_count_row = (
-        await db.execute(
-            "select count(*) as cnt from datasette_scribe_transcription_entries where speaker_id = ?",
-            [body.from_speaker],
-        )
-    ).first()
-    if global_count_row and global_count_row["cnt"] == 0:
-        await db.execute_write(
-            "delete from datasette_scribe_speakers where name = ?",
-            [body.from_speaker],
-        )
+    # Explicit photo cascade (FK enforcement is off on shared user databases).
+    await db.execute_write(
+        "delete from datasette_scribe_speaker_photos where speaker_id = ?",
+        [body.from_speaker_id],
+    )
+    await db.execute_write(
+        "delete from datasette_scribe_speakers where id = ?",
+        [body.from_speaker_id],
+    )
 
     await db.execute_write(
         "insert into datasette_scribe_transcription_edits (transcription_id, entry_id, operation, detail, created_at)"
@@ -129,8 +143,8 @@ async def api_combine_speakers(
             "combine_speakers",
             json.dumps(
                 {
-                    "from": body.from_speaker,
-                    "to": body.to_speaker,
+                    "from": body.from_speaker_id,
+                    "to": body.to_speaker_id,
                     "affected_entries": affected,
                 }
             ),
@@ -156,42 +170,28 @@ async def api_delete_speaker(
     tid = int(transcription_id)
     await _ensure_transcription_edit(datasette, request, body.database, tid)
 
-    # Check if speaker is used in other transcriptions
-    used_row = (
+    # Deletion is scope-level: null every entry in scope that points at this
+    # speaker, then delete it (its photo cascades via the FK). No "used in other
+    # transcriptions" guard — the speaker is shared across its whole scope.
+    affected = (
         await db.execute(
-            "select exists("
-            " select 1 from datasette_scribe_transcription_entries"
-            " where speaker_id = ? and transcription_id != ?"
-            ") as used_elsewhere",
-            [body.speaker_name, tid],
+            "select count(*) c from datasette_scribe_transcription_entries where speaker_id = ?",
+            [body.speaker_id],
         )
-    ).first()
-    if used_row and used_row["used_elsewhere"]:
-        return Response.json(
-            EditResponse(
-                ok=False,
-                error="Speaker is used in other transcriptions. Use unassign instead.",
-            ).model_dump(),
-            status=400,
-        )
-
-    count_row = (
-        await db.execute(
-            "select count(*) as cnt from datasette_scribe_transcription_entries"
-            " where transcription_id = ? and speaker_id = ?",
-            [tid, body.speaker_name],
-        )
-    ).first()
-    affected = count_row["cnt"] if count_row else 0
-
+    ).first()["c"]
     await db.execute_write(
-        "update datasette_scribe_transcription_entries set speaker_id = null"
-        " where transcription_id = ? and speaker_id = ?",
-        [tid, body.speaker_name],
+        "update datasette_scribe_transcription_entries set speaker_id = null where speaker_id = ?",
+        [body.speaker_id],
+    )
+    # FK enforcement is off on shared user databases, so the photo cascade is
+    # done explicitly (the on-delete-cascade clause documents intent).
+    await db.execute_write(
+        "delete from datasette_scribe_speaker_photos where speaker_id = ?",
+        [body.speaker_id],
     )
     await db.execute_write(
-        "delete from datasette_scribe_speakers where name = ?",
-        [body.speaker_name],
+        "delete from datasette_scribe_speakers where id = ?",
+        [body.speaker_id],
     )
 
     await db.execute_write(
@@ -202,7 +202,7 @@ async def api_delete_speaker(
             "delete_speaker",
             json.dumps(
                 {
-                    "name": body.speaker_name,
+                    "speaker_id": body.speaker_id,
                     "affected_entries": affected,
                 }
             ),

@@ -153,8 +153,8 @@ class CreateSpeakerRequest(BaseModel):
 
 class CombineSpeakersRequest(BaseModel):
     database: str
-    from_speaker: str
-    to_speaker: str
+    from_speaker_id: int
+    to_speaker_id: int
 
 
 class RenameSpeakerRequest(BaseModel):
@@ -164,7 +164,7 @@ class RenameSpeakerRequest(BaseModel):
 
 class DeleteSpeakerRequest(BaseModel):
     database: str
-    speaker_name: str
+    speaker_id: int
 
 
 class EditResponse(BaseModel):

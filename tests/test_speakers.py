@@ -83,3 +83,68 @@ async def test_create_speaker_scoped_unique_per_scope(tmp_path):
         )
     ).rows
     assert sorted(r["collection_id"] for r in rows) == sorted([c1, c2])
+
+
+@pytest.mark.asyncio
+async def test_combine_within_collection_merges_all_members(tmp_path):
+    ds, db = await scribe_db(tmp_path)
+    c = await new_collection(db, "C")
+    t1 = await new_transcription(db)
+    t2 = await new_transcription(db)
+    await add_to_collection(db, c, t1)
+    await add_to_collection(db, c, t2)
+    a = await create_speaker_in_collection(db, c, "A")
+    b = await create_speaker_in_collection(db, c, "B")
+    await assign(db, t1, a)
+    await assign(db, t2, a)
+    await assign(db, t2, b)
+
+    r = await client_post(
+        ds,
+        f"/-/api/scribe/transcription/{t1}/speakers/combine",
+        {"database": DB, "from_speaker_id": a, "to_speaker_id": b},
+    )
+    assert r.json()["ok"]
+    # all A entries (both transcripts) now point at B; A is gone
+    assert (
+        await db.execute(
+            "select count(*) c from datasette_scribe_speakers where id=?", [a]
+        )
+    ).first()["c"] == 0
+    assert (
+        await db.execute(
+            "select count(*) c from datasette_scribe_transcription_entries where speaker_id=?",
+            [a],
+        )
+    ).first()["c"] == 0
+
+
+@pytest.mark.asyncio
+async def test_delete_speaker_nulls_entries_and_drops_photo(tmp_path):
+    ds, db = await scribe_db(tmp_path)
+    t = await new_transcription(db)
+    s = await create_speaker_in_transcript(db, t, "X")
+    await assign(db, t, s)
+    await db.execute_write(
+        "insert into datasette_scribe_speaker_photos (speaker_id, data, content_type)"
+        " values (?, ?, 'image/png')",
+        [s, b"\x89PNG\r\n\x1a\n"],
+    )
+    r = await client_post(
+        ds,
+        f"/-/api/scribe/transcription/{t}/speakers/delete",
+        {"database": DB, "speaker_id": s},
+    )
+    assert r.json()["ok"]
+    assert (
+        await db.execute(
+            "select count(*) c from datasette_scribe_transcription_entries where speaker_id=?",
+            [s],
+        )
+    ).first()["c"] == 0
+    assert (
+        await db.execute(
+            "select count(*) c from datasette_scribe_speaker_photos where speaker_id=?",
+            [s],
+        )
+    ).first()["c"] == 0  # cascade
