@@ -65,7 +65,9 @@ def store_transcription(
                     " (transcription_id, name, is_configured) values (?, ?, 0)",
                     [transcription_id, raw],
                 )
-                speaker_id_for[raw] = cursor.lastrowid
+                speaker_id = cursor.lastrowid
+                assert speaker_id is not None
+                speaker_id_for[raw] = speaker_id
             sid = speaker_id_for[raw]
         cursor.execute(
             """

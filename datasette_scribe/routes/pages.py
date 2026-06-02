@@ -186,37 +186,7 @@ async def transcription_detail_page(
     )
     entries = [TranscriptionEntry(**dict(r)) for r in entry_rows.rows]
 
-    speaker_rows = await db.execute(
-        "select distinct s.id, s.name, s.is_original"
-        " from datasette_scribe_speakers s"
-        " join datasette_scribe_transcription_entries e on e.speaker_id = s.name"
-        " where e.transcription_id = ?"
-        " order by s.name",
-        [tid],
-    )
-    speakers = []
-    for r in speaker_rows.rows:
-        used_row = (
-            await db.execute(
-                "select exists("
-                " select 1 from datasette_scribe_transcription_entries"
-                " where speaker_id = ? and transcription_id != ?"
-                ") as used_elsewhere",
-                [r["name"], tid],
-            )
-        ).first()
-        speakers.append(
-            TranscriptionSpeaker(
-                id=r["id"],
-                name=r["name"],
-                is_original=bool(r["is_original"]),
-                used_in_other_transcriptions=bool(
-                    used_row["used_elsewhere"] if used_row else False
-                ),
-            )
-        )
-
-    # Check if transcription belongs to a collection
+    # Check if transcription belongs to a collection — its scope.
     collection_row = (
         await db.execute(
             "select c.id, c.name, c.description, c.created_at"
@@ -228,40 +198,49 @@ async def transcription_detail_page(
     ).first()
     collection = CollectionSummary(**dict(collection_row)) if collection_row else None
 
-    # Speaker scoping: only show speakers relevant to this context
+    # all_speakers: every speaker in this transcript's scope (the collection
+    # roster, or the transcript's own speakers when standalone).
     if collection:
-        # In a collection: speakers used within the same collection + free speakers
-        all_speaker_rows = await db.execute(
-            "select distinct s.id, s.name, s.is_original from datasette_scribe_speakers s"
-            " where s.name in ("
-            "   select e.speaker_id from datasette_scribe_transcription_entries e"
-            "   join datasette_scribe_collection_transcriptions ct on ct.transcription_id = e.transcription_id"
-            "   where ct.collection_id = ? and e.speaker_id is not null"
-            " ) or s.name not in ("
-            "   select e.speaker_id from datasette_scribe_transcription_entries e"
-            "   where e.speaker_id is not null"
-            " ) order by s.name",
-            [collection.id],
-        )
+        scope_col, scope_ref = "collection_id", collection.id
     else:
-        # Uncollected: speakers used in uncollected transcriptions + free speakers
-        all_speaker_rows = await db.execute(
-            "select distinct s.id, s.name, s.is_original from datasette_scribe_speakers s"
-            " where s.name in ("
-            "   select e.speaker_id from datasette_scribe_transcription_entries e"
-            "   where e.transcription_id not in ("
-            "     select transcription_id from datasette_scribe_collection_transcriptions"
-            "   ) and e.speaker_id is not null"
-            " ) or s.name not in ("
-            "   select e.speaker_id from datasette_scribe_transcription_entries e"
-            "   where e.speaker_id is not null"
-            " ) order by s.name"
-        )
+        scope_col, scope_ref = "transcription_id", tid
+    all_speaker_rows = await db.execute(
+        "select s.id, s.name, s.description, s.is_configured,"
+        " exists(select 1 from datasette_scribe_speaker_photos p where p.speaker_id = s.id) as has_photo"
+        f" from datasette_scribe_speakers s where s.{scope_col} = ? order by s.name",
+        [scope_ref],
+    )
     all_speakers = [
         TranscriptionSpeaker(
-            id=r["id"], name=r["name"], is_original=bool(r["is_original"])
+            id=r["id"],
+            name=r["name"],
+            description=r["description"],
+            is_configured=bool(r["is_configured"]),
+            has_photo=bool(r["has_photo"]),
         )
         for r in all_speaker_rows.rows
+    ]
+
+    # speakers: those actually used in this transcript, joined by id.
+    used_rows = await db.execute(
+        "select s.id, s.name, s.description, s.is_configured,"
+        " exists(select 1 from datasette_scribe_speaker_photos p where p.speaker_id = s.id) as has_photo,"
+        " count(e.id) as entry_count"
+        " from datasette_scribe_speakers s"
+        " join datasette_scribe_transcription_entries e"
+        "   on e.speaker_id = s.id and e.transcription_id = ?"
+        " group by s.id order by entry_count desc",
+        [tid],
+    )
+    speakers = [
+        TranscriptionSpeaker(
+            id=r["id"],
+            name=r["name"],
+            description=r["description"],
+            is_configured=bool(r["is_configured"]),
+            has_photo=bool(r["has_photo"]),
+        )
+        for r in used_rows.rows
     ]
 
     edit_rows = await db.execute(
@@ -358,19 +337,28 @@ async def collection_detail_page(datasette, request, database: str, collection_i
     )
     available = await _visible_summaries(datasette, request, database, avail_rows.rows)
 
-    # Speaker stats for this collection
+    # Speaker stats for this collection — keyed on speaker id.
     speaker_rows = await db.execute(
-        "select e.speaker_id as name,"
-        " count(*) as entry_count,"
+        "select s.id, s.name, s.description,"
+        " exists(select 1 from datasette_scribe_speaker_photos p where p.speaker_id = s.id) as has_photo,"
+        " count(e.id) as entry_count,"
         " count(distinct e.transcription_id) as transcription_count"
-        " from datasette_scribe_transcription_entries e"
-        " join datasette_scribe_collection_transcriptions ct on ct.transcription_id = e.transcription_id"
-        " where ct.collection_id = ? and e.speaker_id is not null"
-        " group by e.speaker_id"
-        " order by entry_count desc",
+        " from datasette_scribe_speakers s"
+        " left join datasette_scribe_transcription_entries e on e.speaker_id = s.id"
+        " where s.collection_id = ? group by s.id order by entry_count desc",
         [cid],
     )
-    speakers = [CollectionSpeakerStat(**dict(r)) for r in speaker_rows.rows]
+    speakers = [
+        CollectionSpeakerStat(
+            id=r["id"],
+            name=r["name"],
+            description=r["description"],
+            has_photo=bool(r["has_photo"]),
+            entry_count=r["entry_count"],
+            transcription_count=r["transcription_count"],
+        )
+        for r in speaker_rows.rows
+    ]
 
     return await render_page(
         datasette,

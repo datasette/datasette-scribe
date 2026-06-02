@@ -43,7 +43,7 @@ class TranscriptionEntry(BaseModel):
     id: int
     start: float
     end: float
-    speaker_id: str | None = None
+    speaker_id: int | None = None
     text: str
     original_speaker_id: str | None = None
     original_text: str | None = None
@@ -52,8 +52,9 @@ class TranscriptionEntry(BaseModel):
 class TranscriptionSpeaker(BaseModel):
     id: int
     name: str
-    is_original: bool = True
-    used_in_other_transcriptions: bool = False
+    description: str = ""
+    is_configured: bool = False
+    has_photo: bool = False
 
 
 class TranscriptionEdit(BaseModel):
@@ -108,7 +109,10 @@ class NewTranscriptionPageData(BaseModel):
 
 
 class CollectionSpeakerStat(BaseModel):
+    id: int
     name: str
+    description: str = ""
+    has_photo: bool = False
     entry_count: int
     transcription_count: int
 
