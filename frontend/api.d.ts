@@ -323,6 +323,11 @@ export interface paths {
                              * @default null
                              */
                             unlinked_entries: number | null;
+                            /**
+                             * Id
+                             * @default null
+                             */
+                            id: number | null;
                         };
                     };
                 };
@@ -382,6 +387,11 @@ export interface paths {
                              * @default null
                              */
                             unlinked_entries: number | null;
+                            /**
+                             * Id
+                             * @default null
+                             */
+                            id: number | null;
                         };
                     };
                 };
@@ -443,6 +453,11 @@ export interface paths {
                              * @default null
                              */
                             unlinked_entries: number | null;
+                            /**
+                             * Id
+                             * @default null
+                             */
+                            id: number | null;
                         };
                     };
                 };
@@ -502,6 +517,11 @@ export interface paths {
                              * @default null
                              */
                             unlinked_entries: number | null;
+                            /**
+                             * Id
+                             * @default null
+                             */
+                            id: number | null;
                         };
                     };
                 };
@@ -561,6 +581,11 @@ export interface paths {
                              * @default null
                              */
                             unlinked_entries: number | null;
+                            /**
+                             * Id
+                             * @default null
+                             */
+                            id: number | null;
                         };
                     };
                 };
@@ -628,6 +653,11 @@ export interface paths {
                              * @default null
                              */
                             unlinked_entries: number | null;
+                            /**
+                             * Id
+                             * @default null
+                             */
+                            id: number | null;
                         };
                     };
                 };
@@ -687,6 +717,11 @@ export interface paths {
                              * @default null
                              */
                             unlinked_entries: number | null;
+                            /**
+                             * Id
+                             * @default null
+                             */
+                            id: number | null;
                         };
                     };
                 };
@@ -785,6 +820,11 @@ export interface paths {
                              * @default null
                              */
                             unlinked_entries: number | null;
+                            /**
+                             * Id
+                             * @default null
+                             */
+                            id: number | null;
                         };
                     };
                 };
@@ -849,6 +889,11 @@ export interface paths {
                              * @default null
                              */
                             unlinked_entries: number | null;
+                            /**
+                             * Id
+                             * @default null
+                             */
+                            id: number | null;
                         };
                     };
                 };
@@ -913,6 +958,11 @@ export interface paths {
                              * @default null
                              */
                             unlinked_entries: number | null;
+                            /**
+                             * Id
+                             * @default null
+                             */
+                            id: number | null;
                         };
                     };
                 };
@@ -972,6 +1022,11 @@ export interface paths {
                              * @default null
                              */
                             unlinked_entries: number | null;
+                            /**
+                             * Id
+                             * @default null
+                             */
+                            id: number | null;
                         };
                     };
                 };
@@ -1031,6 +1086,11 @@ export interface paths {
                              * @default null
                              */
                             unlinked_entries: number | null;
+                            /**
+                             * Id
+                             * @default null
+                             */
+                            id: number | null;
                         };
                     };
                 };

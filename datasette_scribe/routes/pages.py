@@ -18,9 +18,11 @@ from ..page_data import (
     TranscriptionSummary,
 )
 from ..permissions import (
+    SCRIBE_COLLECTION_RESOURCE_TYPE,
     _scope_resource,
     can_edit,
     can_manage,
+    can_manage_collection,
     ensure_view,
     filter_visible_ids,
 )
@@ -90,6 +92,24 @@ async def _build_share_info(datasette, request, database, tid):
         resource_type=resource.name,
         parent=database,
         child=resource.child,
+        features=features,
+        can_manage=manage,
+        available=True,
+    )
+
+
+async def _build_collection_share_info(datasette, request, database, cid):
+    """Sharing context for the collection detail page (parallel to
+    :func:`_build_share_info`). Targets the scribe-collection resource."""
+    if _share_capabilities is None:
+        return None
+    caps = _share_capabilities(datasette)
+    features = ",".join(key for key, enabled in caps.items() if enabled)
+    manage = await can_manage_collection(datasette, request.actor, database, cid)
+    return ShareInfo(
+        resource_type=SCRIBE_COLLECTION_RESOURCE_TYPE,
+        parent=database,
+        child=str(cid),
         features=features,
         can_manage=manage,
         available=True,
@@ -360,6 +380,8 @@ async def collection_detail_page(datasette, request, database: str, collection_i
         for r in speaker_rows.rows
     ]
 
+    share = await _build_collection_share_info(datasette, request, database, cid)
+
     return await render_page(
         datasette,
         request,
@@ -371,5 +393,6 @@ async def collection_detail_page(datasette, request, database: str, collection_i
             transcriptions=transcriptions,
             available_transcriptions=available,
             speakers=speakers,
+            share=share,
         ),
     )

@@ -118,7 +118,7 @@ async def api_create_speaker(
     scope = await scope_of_transcript(db, tid)
     col, ref = scope_columns(scope)
     try:
-        await db.execute_write(
+        result = await db.execute_write(
             f"insert into datasette_scribe_speakers ({col}, name, is_configured, configured_at)"
             f" values (?, ?, 1, datetime('now', 'subsec'))",
             [ref, body.name],
@@ -137,7 +137,7 @@ async def api_create_speaker(
         [tid, "create_speaker", json.dumps({"name": body.name})],
     )
 
-    return Response.json(EditResponse(ok=True).model_dump())
+    return Response.json(EditResponse(ok=True, id=result.lastrowid).model_dump())
 
 
 @router.POST(

@@ -66,6 +66,44 @@
       "title": "CollectionSummary",
       "type": "object"
     },
+    "ShareInfo": {
+      "properties": {
+        "resource_type": {
+          "title": "Resource Type",
+          "type": "string"
+        },
+        "parent": {
+          "title": "Parent",
+          "type": "string"
+        },
+        "child": {
+          "title": "Child",
+          "type": "string"
+        },
+        "features": {
+          "default": "",
+          "title": "Features",
+          "type": "string"
+        },
+        "can_manage": {
+          "default": false,
+          "title": "Can Manage",
+          "type": "boolean"
+        },
+        "available": {
+          "default": false,
+          "title": "Available",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "resource_type",
+        "parent",
+        "child"
+      ],
+      "title": "ShareInfo",
+      "type": "object"
+    },
     "TranscriptionSummary": {
       "properties": {
         "id": {
@@ -213,6 +251,17 @@
       },
       "title": "Speakers",
       "type": "array"
+    },
+    "share": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ShareInfo"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     }
   },
   "required": [

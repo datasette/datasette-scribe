@@ -44,21 +44,27 @@ def extra_template_vars(datasette):
     return {"datasette_scribe_vite_entry": entry}
 
 
-def _is_transcription_page(request):
-    # The share dialog only renders on the transcription detail page.
-    return request is not None and "/-/scribe/transcription/" in request.path
+def _is_share_page(request):
+    # The share dialog renders on the transcription detail page (transcription
+    # or collection ACL) and the collection detail page (collection ACL).
+    if request is None:
+        return False
+    return (
+        "/-/scribe/transcription/" in request.path
+        or "/-/scribe/collections/" in request.path
+    )
 
 
 @hookimpl
 def extra_js_urls(datasette, request):
-    if datasette_share_assets is None or not _is_transcription_page(request):
+    if datasette_share_assets is None or not _is_share_page(request):
         return []
     return datasette_share_assets(datasette)["js"]
 
 
 @hookimpl
 def extra_css_urls(datasette, request):
-    if datasette_share_assets is None or not _is_transcription_page(request):
+    if datasette_share_assets is None or not _is_share_page(request):
         return []
     return datasette_share_assets(datasette)["css"]
 

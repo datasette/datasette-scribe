@@ -124,6 +124,7 @@ class CollectionDetailPageData(BaseModel):
     transcriptions: list[TranscriptionSummary] = []
     available_transcriptions: list[TranscriptionSummary] = []
     speakers: list[CollectionSpeakerStat] = []
+    share: ShareInfo | None = None
 
 
 # POST /-/api/scribe/new — submit a new audio URL for transcription
@@ -187,6 +188,8 @@ class EditResponse(BaseModel):
     error: str | None = None
     # Number of entries whose speaker was unassigned by a scope change (move).
     unlinked_entries: int | None = None
+    # Newly created row id, when the endpoint creates one (e.g. create speaker).
+    id: int | None = None
 
 
 class MoveTranscriptionRequest(BaseModel):
