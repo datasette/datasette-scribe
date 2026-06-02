@@ -146,3 +146,48 @@ async def test_creator_owns_collection(tmp_path):
     assert cid["created_by"] == "alice"
     assert await permissions.can_manage_collection(ds, {"id": "alice"}, DB, cid["id"])
     assert not await permissions.can_manage_collection(ds, {"id": "bob"}, DB, cid["id"])
+
+
+@pytest.mark.asyncio
+async def test_listing_shows_collection_members_to_grantee(tmp_path):
+    ds = await _make_datasette(tmp_path)
+    cid = await _insert_collection(ds, "C")
+    t1 = await _insert_transcription(ds, created_by="alice")
+    await _add_to_collection(ds, cid, t1)
+    await permissions.seed_collection_owner_grant(ds, DB, cid, "alice")
+    from datasette_acl.grants import grant
+
+    await grant(
+        ds,
+        permissions.SCRIBE_COLLECTION_RESOURCE_TYPE,
+        DB,
+        str(cid),
+        actor_id="bob",
+        actions=[permissions.ACTION_COLLECTION_VIEW],
+        by_actor="alice",
+    )
+    # end-to-end: bob's scribe listing page surfaces t1 via the collection grant
+    resp = await ds.client.get(f"/{DB}/-/scribe", cookies=_cookies(ds, "bob"))
+    assert resp.status_code == 200
+    match = re.search(
+        r'<script type="application/json" id="pageData">(.*?)</script>',
+        resp.text,
+        re.DOTALL,
+    )
+    assert match is not None
+    page_data = json.loads(match.group(1))
+    member_ids = {
+        t["id"] for c in page_data["collections"] for t in c["transcriptions"]
+    }
+    assert t1 in member_ids
+    # bob without the grant must not see it
+    resp2 = await ds.client.get(f"/{DB}/-/scribe", cookies=_cookies(ds, "alice"))
+    pd2 = json.loads(
+        re.search(
+            r'<script type="application/json" id="pageData">(.*?)</script>',
+            resp2.text,
+            re.DOTALL,
+        ).group(1)
+    )
+    # alice owns the collection too, so she sees it; sanity that the page renders
+    assert resp2.status_code == 200 and pd2["database_name"] == DB

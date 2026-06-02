@@ -18,7 +18,7 @@ from ..page_data import (
     TranscriptionSummary,
 )
 from ..permissions import (
-    SCRIBE_TRANSCRIPTION_RESOURCE_TYPE,
+    _scope_resource,
     can_edit,
     can_manage,
     ensure_view,
@@ -50,11 +50,12 @@ async def render_page(
 
 TRANSCRIPTION_SELECT = (
     "select t.id, t.url, t.input_type, t.filename, t.model, t.granularity, t.submitted_at,"
-    " t.completed_at, t.error, t.created_by,"
+    " t.completed_at, t.error, t.created_by, ct.collection_id as collection_id,"
     " (select count(*) from datasette_scribe_transcription_entries e where e.transcription_id = t.id) as entries_count,"
     " (select max(e.end) from datasette_scribe_transcription_entries e where e.transcription_id = t.id) as duration,"
     " (select count(distinct e.speaker_id) from datasette_scribe_transcription_entries e where e.transcription_id = t.id and e.speaker_id is not null) as speakers_count"
     " from datasette_scribe_transcriptions t"
+    " left join datasette_scribe_collection_transcriptions ct on ct.transcription_id = t.id"
 )
 
 
@@ -80,11 +81,15 @@ async def _build_share_info(datasette, request, database, tid):
         return None
     caps = _share_capabilities(datasette)
     features = ",".join(key for key, enabled in caps.items() if enabled)
+    # Point the dialog at the transcript's scope: a collected transcript opens
+    # its collection's ACL (sharing it shares the whole collection); a standalone
+    # one opens its own. can_manage resolves the same scope.
+    resource, _ = await _scope_resource(datasette, database, tid)
     manage = await can_manage(datasette, request.actor, database, tid)
     return ShareInfo(
-        resource_type=SCRIBE_TRANSCRIPTION_RESOURCE_TYPE,
+        resource_type=resource.name,
         parent=database,
-        child=str(tid),
+        child=resource.child,
         features=features,
         can_manage=manage,
         available=True,
@@ -105,9 +110,7 @@ async def scribe_page(datasette, request, database: str):
     for crow in collection_rows.rows:
         cid = crow["id"]
         t_rows = await db.execute(
-            TRANSCRIPTION_SELECT
-            + " join datasette_scribe_collection_transcriptions ct on ct.transcription_id = t.id"
-            " where ct.collection_id = ? order by t.id desc",
+            TRANSCRIPTION_SELECT + " where ct.collection_id = ? order by t.id desc",
             [cid],
         )
         transcriptions = await _visible_summaries(
@@ -125,9 +128,7 @@ async def scribe_page(datasette, request, database: str):
 
     # Get uncollected transcriptions
     uncollected_rows = await db.execute(
-        TRANSCRIPTION_SELECT
-        + " where t.id not in (select transcription_id from datasette_scribe_collection_transcriptions)"
-        " order by t.id desc"
+        TRANSCRIPTION_SELECT + " where ct.collection_id is null order by t.id desc"
     )
     uncollected = await _visible_summaries(
         datasette, request, database, uncollected_rows.rows
@@ -346,18 +347,14 @@ async def collection_detail_page(datasette, request, database: str, collection_i
 
     # Transcriptions in this collection
     t_rows = await db.execute(
-        TRANSCRIPTION_SELECT
-        + " join datasette_scribe_collection_transcriptions ct on ct.transcription_id = t.id"
-        " where ct.collection_id = ? order by t.id desc",
+        TRANSCRIPTION_SELECT + " where ct.collection_id = ? order by t.id desc",
         [cid],
     )
     transcriptions = await _visible_summaries(datasette, request, database, t_rows.rows)
 
     # Available uncollected transcriptions
     avail_rows = await db.execute(
-        TRANSCRIPTION_SELECT
-        + " where t.id not in (select transcription_id from datasette_scribe_collection_transcriptions)"
-        " order by t.id desc"
+        TRANSCRIPTION_SELECT + " where ct.collection_id is null order by t.id desc"
     )
     available = await _visible_summaries(datasette, request, database, avail_rows.rows)
 
