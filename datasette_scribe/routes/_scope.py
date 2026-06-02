@@ -29,6 +29,61 @@ def scope_columns(scope: tuple[str, int]) -> tuple[str, int]:
     return col, ref
 
 
+async def unlink_and_rescope(datasette, database, tid, *, new_collection_id) -> int:
+    """Move transcript ``tid`` to ``new_collection_id`` (None = standalone).
+
+    The single primitive behind all three transitions (standalone↔collection,
+    collection→collection). Unlinks every speaker assignment on the transcript,
+    deletes its now-orphaned transcript-scoped speakers (and their photos),
+    updates membership. ACL transition is the caller's job because policy
+    differs by direction. Returns the number of entries that were unlinked.
+    """
+    db = datasette.get_database(database)
+
+    affected = (
+        await db.execute(
+            "select count(*) c from datasette_scribe_transcription_entries"
+            " where transcription_id = ? and speaker_id is not null",
+            [tid],
+        )
+    ).first()["c"]
+
+    # 1. unlink all assignments on this transcript
+    await db.execute_write(
+        "update datasette_scribe_transcription_entries set speaker_id = null"
+        " where transcription_id = ?",
+        [tid],
+    )
+
+    # 2. delete transcript-scoped speakers of THIS transcript (now unreferenced
+    #    and unreachable — nothing else can point at a transcript-scoped
+    #    speaker). Their photos go too (explicit, FK enforcement is off).
+    #    Collection-scoped speakers are left intact for the remaining members.
+    await db.execute_write(
+        "delete from datasette_scribe_speaker_photos where speaker_id in"
+        " (select id from datasette_scribe_speakers where transcription_id = ?)",
+        [tid],
+    )
+    await db.execute_write(
+        "delete from datasette_scribe_speakers where transcription_id = ?",
+        [tid],
+    )
+
+    # 3. update membership
+    await db.execute_write(
+        "delete from datasette_scribe_collection_transcriptions where transcription_id = ?",
+        [tid],
+    )
+    if new_collection_id is not None:
+        await db.execute_write(
+            "insert into datasette_scribe_collection_transcriptions"
+            " (collection_id, transcription_id) values (?, ?)",
+            [new_collection_id, tid],
+        )
+
+    return affected
+
+
 async def store_segments(db, transcription_id: int, segments) -> None:
     """Insert entries + per-transcript scoped speakers for an extraction result.
 

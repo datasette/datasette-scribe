@@ -374,12 +374,16 @@ async def can_manage(datasette, actor, database, transcription_id) -> bool:
 async def can_manage_collection(datasette, actor, database, collection_id) -> bool:
     """Whether ``actor`` may manage sharing for a collection directly.
 
-    Used by the collection share dialog (T07) and move semantics (T05). Checks
-    the collection-manage action on :class:`ScribeCollectionResource` plus acl's
-    global admin fallback. False when acl is not installed.
+    Used by the collection share dialog (T07) and move semantics (T05). Allowed
+    if acl grants the collection-manage action (owner via the seeded grant), OR
+    the actor holds acl's global ``datasette-acl`` admin permission, OR the
+    collection is an orphan (``created_by`` is None — CLI/direct-insert
+    collections) and the actor holds global scribe access. The orphan fallback
+    parallels :func:`can_view`/:func:`can_edit` for transcriptions. With acl
+    absent, falls back to global access (no sharing without acl).
     """
     if _acl_grant is None:
-        return False
+        return await _has_global_access(datasette, actor)
     if await _allowed(
         datasette,
         actor,
@@ -387,7 +391,22 @@ async def can_manage_collection(datasette, actor, database, collection_id) -> bo
         ScribeCollectionResource(database, collection_id),
     ):
         return True
-    return await datasette.allowed(action=ACL_ADMIN_PERMISSION, actor=actor)
+    if await datasette.allowed(action=ACL_ADMIN_PERMISSION, actor=actor):
+        return True
+    db = datasette.get_database(database)
+    row = (
+        await db.execute(
+            "select created_by from datasette_scribe_collections where id = ?",
+            [collection_id],
+        )
+    ).first()
+    if (
+        row is not None
+        and row["created_by"] is None
+        and await _has_global_access(datasette, actor)
+    ):
+        return True
+    return False
 
 
 async def ensure_view(datasette, actor, database, transcription_id, created_by) -> None:

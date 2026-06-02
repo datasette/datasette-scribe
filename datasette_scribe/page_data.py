@@ -181,6 +181,20 @@ class DeleteSpeakerRequest(BaseModel):
 class EditResponse(BaseModel):
     ok: bool
     error: str | None = None
+    # Number of entries whose speaker was unassigned by a scope change (move).
+    unlinked_entries: int | None = None
+
+
+class MoveTranscriptionRequest(BaseModel):
+    database: str
+    collection_id: int | None = None
+
+
+class MoveResponse(BaseModel):
+    ok: bool
+    unlinked_entries: int = 0
+    collection_id: int | None = None
+    error: str | None = None
 
 
 # Collection API request models
