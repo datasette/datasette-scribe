@@ -36,12 +36,6 @@ create table if not exists datasette_scribe_transcription_entries (
     original_speaker_id text
 );
 
-create table if not exists datasette_scribe_speakers (
-    id integer primary key,
-    name text not null unique,
-    is_original integer not null default 1
-);
-
 create table if not exists datasette_scribe_transcription_edits (
     id integer primary key,
     transcription_id integer references datasette_scribe_transcriptions(id),
@@ -55,7 +49,8 @@ create table if not exists datasette_scribe_collections (
     id integer primary key,
     name text not null unique,
     description text not null default '',
-    created_at text not null default (datetime('now', 'subsec'))
+    created_at text not null default (datetime('now', 'subsec')),
+    created_by text
 );
 
 create table if not exists datasette_scribe_collection_transcriptions (
@@ -63,4 +58,25 @@ create table if not exists datasette_scribe_collection_transcriptions (
     transcription_id integer not null unique references datasette_scribe_transcriptions(id) on delete cascade,
     added_at text not null default (datetime('now', 'subsec')),
     primary key (collection_id, transcription_id)
+);
+
+create table if not exists datasette_scribe_speakers (
+    id integer primary key,
+    collection_id    integer references datasette_scribe_collections(id) on delete cascade,
+    transcription_id integer references datasette_scribe_transcriptions(id) on delete cascade,
+    name text not null,
+    description text not null default '',
+    is_configured integer not null default 0,   -- replaces is_original
+    configured_at text,
+    check ((collection_id is null) <> (transcription_id is null))
+);
+create unique index if not exists scribe_speaker_collection_name
+    on datasette_scribe_speakers(collection_id, name) where collection_id is not null;
+create unique index if not exists scribe_speaker_transcription_name
+    on datasette_scribe_speakers(transcription_id, name) where transcription_id is not null;
+
+create table if not exists datasette_scribe_speaker_photos (
+    speaker_id integer primary key references datasette_scribe_speakers(id) on delete cascade,
+    data blob not null,
+    content_type text not null
 );
