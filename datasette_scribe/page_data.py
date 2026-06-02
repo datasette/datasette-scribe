@@ -162,6 +162,17 @@ class RenameSpeakerRequest(BaseModel):
     new_name: str
 
 
+class UpdateSpeakerRequest(BaseModel):
+    database: str
+    name: str | None = None
+    description: str | None = None
+
+
+class SpeakerPhotoRequest(BaseModel):
+    database: str
+    file_data: str  # base64-encoded image bytes
+
+
 class DeleteSpeakerRequest(BaseModel):
     database: str
     speaker_id: int
