@@ -19,19 +19,30 @@ export function formatTime(seconds: number): string {
 
 export function colorFor(
   entry: TranscriptionEntry,
-  speakerColorMap: Record<string, string>,
+  speakerColorMap: Record<number, string>,
 ): string {
   return (
-    speakerColorMap[entry.speaker_id ?? "unknown"] ?? SPEAKER_COLORS[0]!
+    (entry.speaker_id != null
+      ? speakerColorMap[entry.speaker_id]
+      : undefined) ?? SPEAKER_COLORS[0]!
   );
 }
 
 export function isEntryEdited(entry: TranscriptionEntry): boolean {
-  return (
-    (entry.original_text != null && entry.text !== entry.original_text) ||
-    (entry.original_speaker_id !== undefined &&
-      entry.speaker_id !== entry.original_speaker_id)
-  );
+  // Text edit only. Speaker-change detection compares the current speaker's
+  // name to original_speaker_id (the raw label) and needs the id->name map, so
+  // it lives in the component (see speakerChanged there).
+  return entry.original_text != null && entry.text !== entry.original_text;
+}
+
+export function speakerChanged(
+  entry: TranscriptionEntry,
+  speakerNameById: Record<number, string>,
+): boolean {
+  if (entry.original_speaker_id == null) return false;
+  const currentName =
+    entry.speaker_id != null ? speakerNameById[entry.speaker_id] : null;
+  return currentName !== entry.original_speaker_id;
 }
 
 export function parseUTC(iso: string): Date {

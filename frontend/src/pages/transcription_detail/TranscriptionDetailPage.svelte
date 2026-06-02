@@ -44,19 +44,31 @@
   ]);
   let edits: TranscriptionEdit[] = $state([...(pageData.edits ?? [])]);
 
-  // Derive speaker color map from current speakers list
+  // Stable color per speaker id (scope roster first, then any extras used by
+  // entries). Keyed by integer speaker id.
   let speakerColorMap = $derived.by(() => {
     const ids = [
-      ...new Set(entries.map((e) => e.speaker_id ?? "unknown")),
+      ...new Set([
+        ...allSpeakers.map((s) => s.id),
+        ...entries
+          .map((e) => e.speaker_id)
+          .filter((id): id is number => id != null),
+      ]),
     ];
-    const map: Record<string, string> = {};
+    const map: Record<number, string> = {};
     ids.forEach((id, i) => {
       map[id] = SPEAKER_COLORS[i % SPEAKER_COLORS.length]!;
     });
     return map;
   });
 
-  let allSpeakerNames = $derived(allSpeakers.map((s) => s.name));
+  // id -> display name lookup (for copy/export rendering).
+  let speakerNameById = $derived.by(() => {
+    const map: Record<number, string> = {};
+    for (const s of allSpeakers) map[s.id] = s.name;
+    for (const s of speakers) map[s.id] = s.name;
+    return map;
+  });
 
   // Audio player state
   let audioEl = $state<HTMLAudioElement | null>(null);
@@ -70,11 +82,11 @@
     if (audioEl) audioEl.playbackRate = playbackRate;
   });
 
-  // Speaker filter
-  let filterSpeaker: string | null = $state(null);
+  // Speaker filter (by speaker id)
+  let filterSpeaker: number | null = $state(null);
 
   let displayedEntries = $derived(
-    filterSpeaker
+    filterSpeaker != null
       ? entries.filter((e) => e.speaker_id === filterSpeaker)
       : entries,
   );
@@ -145,16 +157,16 @@
     return false;
   }
 
-  // Speaker reassignment
-  async function reassignSpeaker(entry: TranscriptionEntry, newSpeaker: string) {
-    if (newSpeaker === (entry.speaker_id ?? "")) return;
+  // Speaker reassignment (by speaker id)
+  async function reassignSpeaker(entry: TranscriptionEntry, newSpeakerId: number) {
+    if (newSpeakerId === entry.speaker_id) return;
     const { data } = await client.POST(
       "/-/api/scribe/entry/{entry_id}/edit",
       {
         params: { path: { entry_id: String(entry.id) } },
         body: {
           database: appState.selectedDatabase!,
-          speaker_id: newSpeaker,
+          speaker_id: newSpeakerId,
         },
       },
     );
@@ -162,12 +174,12 @@
       const oldSpeaker = entry.speaker_id;
       const idx = entries.findIndex((e) => e.id === entry.id);
       if (idx >= 0)
-        entries[idx] = { ...entries[idx]!, speaker_id: newSpeaker };
+        entries[idx] = { ...entries[idx]!, speaker_id: newSpeakerId };
       edits = [
         {
           id: Date.now(),
           operation: "reassign_speaker",
-          detail: JSON.stringify({ old: oldSpeaker, new: newSpeaker }),
+          detail: JSON.stringify({ old: oldSpeaker, new: newSpeakerId }),
           created_at: new Date().toISOString(),
           entry_id: entry.id,
         },
@@ -176,7 +188,7 @@
     }
   }
 
-  // Speaker management
+  // Speaker management (all keyed by integer speaker id)
   async function createSpeaker(name: string) {
     const { data } = await client.POST(
       "/-/api/scribe/transcription/{transcription_id}/speakers/create",
@@ -188,12 +200,13 @@
         },
       },
     );
-    if (data?.ok) {
-      const newSpeaker = {
-        id: Date.now(),
+    if (data?.ok && data.id != null) {
+      const newSpeaker: TranscriptionSpeaker = {
+        id: data.id,
         name,
-        is_original: false,
-        used_in_other_transcriptions: false,
+        description: "",
+        is_configured: true,
+        has_photo: false,
       };
       speakers = [...speakers, newSpeaker];
       allSpeakers = [...allSpeakers, newSpeaker];
@@ -222,14 +235,12 @@
     );
     if (data?.ok) {
       const oldName = speaker.name;
-      entries = entries.map((e) =>
-        e.speaker_id === oldName ? { ...e, speaker_id: newName } : e,
-      );
+      // Entries reference speakers by id, so renaming touches no entries.
       speakers = speakers.map((s) =>
-        s.id === speaker.id ? { ...s, name: newName } : s,
+        s.id === speaker.id ? { ...s, name: newName, is_configured: true } : s,
       );
       allSpeakers = allSpeakers.map((s) =>
-        s.id === speaker.id ? { ...s, name: newName } : s,
+        s.id === speaker.id ? { ...s, name: newName, is_configured: true } : s,
       );
       edits = [
         {
@@ -243,35 +254,84 @@
     }
   }
 
-  async function combineSpeakers(fromSpeaker: string, toSpeaker: string) {
+  // Update name and/or description in one call (profile editor).
+  async function updateSpeaker(
+    speaker: TranscriptionSpeaker,
+    fields: { name?: string; description?: string },
+  ): Promise<boolean> {
+    const { data } = await client.POST(
+      "/-/api/scribe/speakers/{speaker_id}/update",
+      {
+        params: { path: { speaker_id: String(speaker.id) } },
+        body: { database: appState.selectedDatabase!, ...fields },
+      },
+    );
+    if (!data?.ok) return false;
+    const patch = (s: TranscriptionSpeaker) =>
+      s.id === speaker.id
+        ? {
+            ...s,
+            name: fields.name ?? s.name,
+            description: fields.description ?? s.description,
+            is_configured: true,
+          }
+        : s;
+    speakers = speakers.map(patch);
+    allSpeakers = allSpeakers.map(patch);
+    return true;
+  }
+
+  // Upload a photo for a speaker (base64). Flips has_photo true on success.
+  async function uploadSpeakerPhoto(
+    speaker: TranscriptionSpeaker,
+    fileData: string,
+  ): Promise<boolean> {
+    const { data } = await client.POST(
+      "/-/api/scribe/speakers/{speaker_id}/photo",
+      {
+        params: { path: { speaker_id: String(speaker.id) } },
+        body: { database: appState.selectedDatabase!, file_data: fileData },
+      },
+    );
+    if (!data?.ok) return false;
+    const patch = (s: TranscriptionSpeaker) =>
+      s.id === speaker.id ? { ...s, has_photo: true } : s;
+    speakers = speakers.map(patch);
+    allSpeakers = allSpeakers.map(patch);
+    return true;
+  }
+
+  async function combineSpeakers(fromId: number, toId: number) {
     const { data } = await client.POST(
       "/-/api/scribe/transcription/{transcription_id}/speakers/combine",
       {
         params: { path: { transcription_id: String(t.id) } },
         body: {
           database: appState.selectedDatabase!,
-          from_speaker: fromSpeaker,
-          to_speaker: toSpeaker,
+          from_speaker_id: fromId,
+          to_speaker_id: toId,
         },
       },
     );
     if (data?.ok) {
       let affected = 0;
       entries = entries.map((e) => {
-        if (e.speaker_id === fromSpeaker) {
+        if (e.speaker_id === fromId) {
           affected++;
-          return { ...e, speaker_id: toSpeaker };
+          return { ...e, speaker_id: toId };
         }
         return e;
       });
-      speakers = speakers.filter((s) => s.name !== fromSpeaker);
+      speakers = speakers.filter((s) => s.id !== fromId);
+      allSpeakers = allSpeakers.filter((s) => s.id !== fromId);
+      if (filterSpeaker === fromId) filterSpeaker = null;
       edits = [
         {
           id: Date.now(),
           operation: "combine_speakers",
           detail: JSON.stringify({
-            from: fromSpeaker,
-            to: toSpeaker,
+            from: fromId,
+            to: toId,
             affected_entries: affected,
           }),
           created_at: new Date().toISOString(),
@@ -281,33 +341,35 @@
     }
   }
 
-  async function deleteSpeaker(speakerName: string) {
+  async function deleteSpeaker(speakerId: number) {
     const { data } = await client.POST(
       "/-/api/scribe/transcription/{transcription_id}/speakers/delete",
       {
         params: { path: { transcription_id: String(t.id) } },
         body: {
           database: appState.selectedDatabase!,
-          speaker_name: speakerName,
+          speaker_id: speakerId,
         },
       },
     );
     if (data?.ok) {
       let affected = 0;
       entries = entries.map((e) => {
-        if (e.speaker_id === speakerName) {
+        if (e.speaker_id === speakerId) {
           affected++;
           return { ...e, speaker_id: null };
         }
         return e;
       });
-      speakers = speakers.filter((s) => s.name !== speakerName);
+      speakers = speakers.filter((s) => s.id !== speakerId);
+      allSpeakers = allSpeakers.filter((s) => s.id !== speakerId);
+      if (filterSpeaker === speakerId) filterSpeaker = null;
       edits = [
         {
           id: Date.now(),
           operation: "delete_speaker",
           detail: JSON.stringify({
-            name: speakerName,
+            speaker_id: speakerId,
             affected_entries: affected,
           }),
           created_at: new Date().toISOString(),
@@ -317,78 +379,19 @@
     }
   }
 
-  async function unassignSpeaker(speakerName: string) {
-    let affected = 0;
-    for (const entry of entries) {
-      if (entry.speaker_id === speakerName) {
-        const { data } = await client.POST(
-          "/-/api/scribe/entry/{entry_id}/edit",
-          {
-            params: { path: { entry_id: String(entry.id) } },
-            body: {
-              database: appState.selectedDatabase!,
-              speaker_id: "",
-            },
-          },
-        );
-        if (data?.ok) affected++;
-      }
-    }
-    if (affected > 0) {
-      entries = entries.map((e) =>
-        e.speaker_id === speakerName ? { ...e, speaker_id: null } : e,
-      );
-      speakers = speakers.filter((s) => s.name !== speakerName);
-      edits = [
-        {
-          id: Date.now(),
-          operation: "unassign_speaker",
-          detail: JSON.stringify({
-            name: speakerName,
-            affected_entries: affected,
-          }),
-          created_at: new Date().toISOString(),
-        },
-        ...edits,
-      ];
-    }
-  }
-
-  async function onSpeakerSelectChange(e: Event, entry: TranscriptionEntry) {
+  function onSpeakerSelectChange(e: Event, entry: TranscriptionEntry) {
     const target = e.currentTarget as HTMLSelectElement;
-    if (target.value === "__new__") {
-      target.value = entry.speaker_id ?? "";
-      const name = prompt("New speaker name:");
-      if (!name?.trim()) return;
-      const trimmed = name.trim();
-      if (!allSpeakerNames.includes(trimmed)) {
-        const { data } = await client.POST(
-          "/-/api/scribe/transcription/{transcription_id}/speakers/create",
-          {
-            params: { path: { transcription_id: String(t.id) } },
-            body: { database: appState.selectedDatabase!, name: trimmed },
-          },
-        );
-        if (data?.ok) {
-          const newSpeaker = { id: Date.now(), name: trimmed, is_original: false, used_in_other_transcriptions: false };
-          speakers = [...speakers, newSpeaker];
-          allSpeakers = [...allSpeakers, newSpeaker];
-          edits = [
-            { id: Date.now(), operation: "create_speaker", detail: JSON.stringify({ name: trimmed }), created_at: new Date().toISOString() },
-            ...edits,
-          ];
-        } else {
-          return;
-        }
-      }
-      reassignSpeaker(entry, trimmed);
-    } else {
-      reassignSpeaker(entry, target.value);
+    // "No speaker" (empty value) cannot clear via the reassign endpoint; use
+    // the sidebar delete/combine actions to manage assignments.
+    if (!target.value) {
+      target.value = entry.speaker_id != null ? String(entry.speaker_id) : "";
+      return;
     }
+    reassignSpeaker(entry, Number(target.value));
   }
 
-  function toggleFilterSpeaker(name: string) {
-    filterSpeaker = filterSpeaker === name ? null : name;
+  function toggleFilterSpeaker(id: number) {
+    filterSpeaker = filterSpeaker === id ? null : id;
   }
 
   function formatProcessingDuration(startIso: string, endIso: string): string {
@@ -404,53 +407,54 @@
     }
   }
 
-  // Collection assignment
+  // Collection assignment — moving unlinks speakers, so confirm first.
   let movingCollection = $state(false);
+  let moveConfirmOpen = $state(false);
+  let pendingCollectionId: number | null = $state(null);
+  let moveToast: string | null = $state(null);
 
-  async function onCollectionChange(e: Event) {
+  function requestCollectionChange(e: Event) {
     const target = e.currentTarget as HTMLSelectElement;
-    const newValue = target.value;
+    pendingCollectionId = target.value ? Number(target.value) : null;
+    // Revert the <select> to the current value until the move is confirmed.
+    target.value = collection?.id != null ? String(collection.id) : "";
+    moveConfirmOpen = true;
+  }
+
+  function cancelMove() {
+    moveConfirmOpen = false;
+    pendingCollectionId = null;
+  }
+
+  let pendingCollectionName = $derived(
+    pendingCollectionId != null
+      ? (allCollections.find((c) => c.id === pendingCollectionId)?.name ??
+          "the collection")
+      : null,
+  );
+
+  async function confirmMove() {
+    moveConfirmOpen = false;
     movingCollection = true;
-
-    if (collection) {
-      const { error: removeErr } = await client.POST(
-        "/-/api/scribe/collections/{collection_id}/remove-transcription",
-        {
-          params: { path: { collection_id: String(collection.id) } },
-          body: {
-            database: appState.selectedDatabase!,
-            transcription_id: t.id,
-          } as any,
+    const { data } = await client.POST(
+      "/-/api/scribe/transcription/{transcription_id}/move",
+      {
+        params: { path: { transcription_id: String(t.id) } },
+        body: {
+          database: appState.selectedDatabase!,
+          collection_id: pendingCollectionId,
         },
-      );
-      if (removeErr) {
-        movingCollection = false;
-        return;
-      }
-    }
-
-    if (newValue) {
-      const newId = Number(newValue);
-      const { error: addErr } = await client.POST(
-        "/-/api/scribe/collections/{collection_id}/add-transcription",
-        {
-          params: { path: { collection_id: String(newId) } },
-          body: {
-            database: appState.selectedDatabase!,
-            transcription_id: t.id,
-          } as any,
-        },
-      );
-      if (addErr) {
-        movingCollection = false;
-        return;
-      }
-      collection = allCollections.find((c) => c.id === newId) ?? null;
-    } else {
-      collection = null;
-    }
-
+      },
+    );
     movingCollection = false;
+    if (data?.ok) {
+      moveToast = `Moved. ${data.unlinked_entries} ${
+        data.unlinked_entries === 1 ? "entry" : "entries"
+      } unassigned.`;
+      // Reload so the sidebar reflects the new scope's speakers and the Share
+      // button targets the new scope.
+      setTimeout(() => window.location.reload(), 700);
+    }
   }
 
   // Copy transcript text
@@ -459,7 +463,8 @@
   async function copyTranscript() {
     const text = displayedEntries
       .map((e) => {
-        const speaker = e.speaker_id ? `${e.speaker_id}: ` : "";
+        const name = e.speaker_id != null ? speakerNameById[e.speaker_id] : undefined;
+        const speaker = name ? `${name}: ` : "";
         return `${speaker}${e.text}`;
       })
       .join("\n");
@@ -478,7 +483,7 @@
     {#if allCollections.length > 0}
       <span class="meta-item collection-meta">
         <strong>Collection:</strong>
-        <select class="collection-select" value={collection?.id != null ? String(collection.id) : ""} onchange={onCollectionChange} disabled={movingCollection}>
+        <select class="collection-select" value={collection?.id != null ? String(collection.id) : ""} onchange={requestCollectionChange} disabled={movingCollection}>
           <option value="">None</option>
           {#each allCollections as c}
             <option value={String(c.id)}>{c.name}</option>
@@ -513,7 +518,7 @@
   </div>
   <div class="top-bar-right">
     {#if canManageShare}
-      <button class="btn-share" onclick={() => (shareOpen = true)}>Share</button>
+      <button class="btn-share" onclick={() => (shareOpen = true)} title={collection ? "Sharing is managed at the collection level" : "Share this transcription"}>Share</button>
     {/if}
     {#if entries.length > 0}
       <button class="btn-copy" onclick={copyTranscript}>{copyLabel}</button>
@@ -547,20 +552,23 @@
         {showOriginal}
         {edits}
         {entries}
+        database={appState.selectedDatabase!}
         onToggleFilter={toggleFilterSpeaker}
         onToggleShowOriginal={() => (showOriginal = !showOriginal)}
         onCreateSpeaker={createSpeaker}
         onRenameSpeaker={renameSpeaker}
+        onUpdateSpeaker={updateSpeaker}
+        onUploadPhoto={uploadSpeakerPhoto}
         onCombineSpeakers={combineSpeakers}
         onDeleteSpeaker={deleteSpeaker}
-        onUnassignSpeaker={unassignSpeaker}
       />
 
       <TranscriptEntryList
         {entries}
         {displayedEntries}
         {filterSpeaker}
-        {allSpeakerNames}
+        {allSpeakers}
+        {speakerNameById}
         {speakerColorMap}
         {activeIndex}
         {showOriginal}
@@ -614,6 +622,35 @@
       </div>
     </div>
   </div>
+{/if}
+
+{#if moveConfirmOpen}
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="share-backdrop" onclick={cancelMove}>
+    <div class="confirm-modal" role="dialog" aria-label="Confirm move" tabindex="-1" onclick={(e) => e.stopPropagation()}>
+      <h3>
+        {#if pendingCollectionId != null}
+          Move to {pendingCollectionName}?
+        {:else}
+          Remove from collection?
+        {/if}
+      </h3>
+      <p>
+        Moving this transcript will unassign all its speakers — you'll reassign
+        them in the new scope. Sharing will also change to the destination's
+        settings.
+      </p>
+      <div class="confirm-actions">
+        <button class="btn-primary-lg" onclick={confirmMove}>Continue</button>
+        <button class="btn-copy" onclick={cancelMove}>Cancel</button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+{#if moveToast}
+  <div class="toast">{moveToast}</div>
 {/if}
 
 <style>
@@ -805,5 +842,53 @@
 
   .empty {
     color: #666;
+  }
+
+  .confirm-modal {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+    width: min(420px, 92vw);
+    padding: 1.25rem;
+  }
+  .confirm-modal h3 {
+    margin: 0 0 0.5rem;
+  }
+  .confirm-modal p {
+    margin: 0 0 1rem;
+    color: #555;
+    font-size: 0.9rem;
+    line-height: 1.4;
+  }
+  .confirm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+  }
+  .btn-primary-lg {
+    font-size: 0.85rem;
+    padding: 0.35rem 0.9rem;
+    border: 1px solid #4a90d9;
+    border-radius: 4px;
+    background: #4a90d9;
+    color: white;
+    cursor: pointer;
+  }
+  .btn-primary-lg:hover {
+    background: #3a7bc8;
+  }
+
+  .toast {
+    position: fixed;
+    bottom: 1.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #323232;
+    color: #fff;
+    padding: 0.6rem 1rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    z-index: 1100;
   }
 </style>

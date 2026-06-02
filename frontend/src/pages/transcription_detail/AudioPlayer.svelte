@@ -18,8 +18,8 @@
     currentTime: number;
     duration: number;
     entries: TranscriptionEntry[];
-    speakerColorMap: Record<string, string>;
-    filterSpeaker: string | null;
+    speakerColorMap: Record<number, string>;
+    filterSpeaker: number | null;
     playbackRate: number;
     onTogglePlay: () => void;
     onSeek: (time: number) => void;
@@ -121,7 +121,7 @@
           <div
             class="timeline-segment"
             style="left: {(entry.start / duration) * 100}%; width: {((entry.end - entry.start) / duration) * 100}%; background: {segmentColor(entry)};"
-            title="{entry.speaker_id ?? 'Speaker'}: {formatTime(entry.start)} - {formatTime(entry.end)}"
+            title="{formatTime(entry.start)} - {formatTime(entry.end)}"
           ></div>
         {/each}
       {/if}

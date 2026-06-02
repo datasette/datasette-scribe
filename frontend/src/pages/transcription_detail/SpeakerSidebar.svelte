@@ -13,27 +13,37 @@
     showOriginal,
     edits,
     entries,
+    database,
     onToggleFilter,
     onToggleShowOriginal,
     onCreateSpeaker,
     onRenameSpeaker,
+    onUpdateSpeaker,
+    onUploadPhoto,
     onCombineSpeakers,
     onDeleteSpeaker,
-    onUnassignSpeaker,
   }: {
     speakers: TranscriptionSpeaker[];
-    speakerColorMap: Record<string, string>;
-    filterSpeaker: string | null;
+    speakerColorMap: Record<number, string>;
+    filterSpeaker: number | null;
     showOriginal: boolean;
     edits: TranscriptionEdit[];
     entries: TranscriptionEntry[];
-    onToggleFilter: (name: string) => void;
+    database: string;
+    onToggleFilter: (id: number) => void;
     onToggleShowOriginal: () => void;
     onCreateSpeaker: (name: string) => void;
     onRenameSpeaker: (speaker: TranscriptionSpeaker, newName: string) => void;
-    onCombineSpeakers: (fromSpeaker: string, toSpeaker: string) => void;
-    onDeleteSpeaker: (speakerName: string) => void;
-    onUnassignSpeaker: (speakerName: string) => void;
+    onUpdateSpeaker: (
+      speaker: TranscriptionSpeaker,
+      fields: { name?: string; description?: string },
+    ) => Promise<boolean>;
+    onUploadPhoto: (
+      speaker: TranscriptionSpeaker,
+      fileData: string,
+    ) => Promise<boolean>;
+    onCombineSpeakers: (fromId: number, toId: number) => void;
+    onDeleteSpeaker: (id: number) => void;
   } = $props();
 
   // Internal state
@@ -41,8 +51,16 @@
   let renamingSpeakerId: number | null = $state(null);
   let renameText = $state("");
   let openMenuSpeakerId: number | null = $state(null);
-  let combiningFromSpeaker: string | null = $state(null);
+  let combiningFromSpeaker: number | null = $state(null);
   let historyOpen = $state(false);
+
+  // Profile editor state
+  let editingProfileId: number | null = $state(null);
+  let editDescription = $state("");
+  let profileError: string | null = $state(null);
+  let savingProfile = $state(false);
+  // Bumped after a photo upload to bust the <img> cache for re-uploads.
+  let photoBust = $state(0);
 
   function toggleSpeakerMenu(id: number) {
     openMenuSpeakerId = openMenuSpeakerId === id ? null : id;
@@ -80,8 +98,72 @@
     newSpeakerName = "";
   }
 
-  function speakerEntryCount(name: string): number {
-    return entries.filter((e) => e.speaker_id === name).length;
+  function speakerEntryCount(id: number): number {
+    return entries.filter((e) => e.speaker_id === id).length;
+  }
+
+  // --- Profile editor ---
+  function startEditingProfile(speaker: TranscriptionSpeaker) {
+    editingProfileId = speaker.id;
+    editDescription = speaker.description ?? "";
+    profileError = null;
+  }
+
+  function cancelProfile() {
+    editingProfileId = null;
+    editDescription = "";
+    profileError = null;
+  }
+
+  async function saveProfile(speaker: TranscriptionSpeaker) {
+    savingProfile = true;
+    profileError = null;
+    const ok = await onUpdateSpeaker(speaker, { description: editDescription });
+    savingProfile = false;
+    if (ok) {
+      cancelProfile();
+    } else {
+      profileError = "Failed to save";
+    }
+  }
+
+  async function fileToBase64(file: File): Promise<string> {
+    const buf = new Uint8Array(await file.arrayBuffer());
+    let s = "";
+    for (const b of buf) s += String.fromCharCode(b);
+    return btoa(s);
+  }
+
+  async function onPhotoSelected(e: Event, speaker: TranscriptionSpeaker) {
+    const input = e.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = ""; // allow re-selecting the same file
+    if (!file) return;
+    profileError = null;
+    const okType = file.type === "image/png" || file.type === "image/jpeg";
+    const okSize = file.size <= 1_048_576;
+    if (!okType) {
+      profileError = "Photo must be PNG or JPEG";
+      return;
+    }
+    if (!okSize) {
+      profileError = "Photo exceeds 1 MB";
+      return;
+    }
+    savingProfile = true;
+    const fileData = await fileToBase64(file);
+    const ok = await onUploadPhoto(speaker, fileData);
+    savingProfile = false;
+    if (ok) {
+      photoBust++;
+    } else {
+      profileError = "Upload failed";
+    }
+  }
+
+  function photoUrl(speaker: TranscriptionSpeaker): string {
+    const bust = photoBust > 0 ? `?v=${photoBust}` : "";
+    return `/${database}/-/api/scribe/speakers/${speaker.id}/photo${bust}`;
   }
 
   function formatEditDescription(edit: TranscriptionEdit): string {
@@ -94,17 +176,15 @@
           return `Changed text of entry${timeStr}`;
         }
         case "reassign_speaker":
-          return `Reassigned entry from ${d.old ?? "none"} to ${d.new}`;
+          return "Reassigned a speaker on an entry";
         case "create_speaker":
           return `Created speaker "${d.name}"`;
         case "combine_speakers":
-          return `Combined ${d.from} into ${d.to} (${d.affected_entries} entries)`;
+          return `Combined two speakers (${d.affected_entries} entries)`;
         case "delete_speaker":
-          return `Deleted speaker "${d.name}" (${d.affected_entries} entries unassigned)`;
+          return `Deleted a speaker (${d.affected_entries} entries unassigned)`;
         case "rename_speaker":
           return `Renamed speaker "${d.old_name}" to "${d.new_name}"`;
-        case "unassign_speaker":
-          return `Unassigned speaker "${d.name}" (${d.affected_entries} entries)`;
         default:
           return edit.operation;
       }
@@ -119,7 +199,11 @@
   <div class="speaker-list">
     {#each speakers as speaker}
       <div class="speaker-row">
-        <span class="legend-dot" style="background: {speakerColorMap[speaker.name] ?? '#999'}"></span>
+        {#if speaker.has_photo}
+          <img class="speaker-photo" src={photoUrl(speaker)} alt={speaker.name} />
+        {:else}
+          <span class="legend-dot" style="background: {speakerColorMap[speaker.id] ?? '#999'}"></span>
+        {/if}
         {#if renamingSpeakerId === speaker.id}
           <input
             type="text"
@@ -137,9 +221,9 @@
         {:else}
           <!-- svelte-ignore a11y_click_events_have_key_events -->
           <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <span class="speaker-name" class:speaker-name-active={filterSpeaker === speaker.name} onclick={() => onToggleFilter(speaker.name)} title="Click to filter">{speaker.name}</span>
-          <span class="speaker-count">{speakerEntryCount(speaker.name)}</span>
-          {#if !speaker.is_original}
+          <span class="speaker-name" class:speaker-name-active={filterSpeaker === speaker.id} onclick={() => onToggleFilter(speaker.id)} title="Click to filter">{speaker.name}</span>
+          <span class="speaker-count">{speakerEntryCount(speaker.id)}</span>
+          {#if speaker.is_configured}
             <span class="speaker-badge">custom</span>
           {/if}
           <div class="speaker-menu-wrapper">
@@ -151,27 +235,47 @@
               <!-- svelte-ignore a11y_no_static_element_interactions -->
               <div class="speaker-menu-backdrop" onclick={closeSpeakerMenu}></div>
               <div class="speaker-menu">
+                <button class="menu-item" onclick={() => { closeSpeakerMenu(); startEditingProfile(speaker); }}>Edit profile</button>
                 <button class="menu-item" onclick={() => { closeSpeakerMenu(); startRenamingSpeaker(speaker); }}>Rename</button>
-                {#if combiningFromSpeaker === speaker.name}
+                {#if combiningFromSpeaker === speaker.id}
                   <div class="menu-submenu">
                     <span class="menu-label">Merge into:</span>
-                    {#each speakers.filter((s) => s.name !== speaker.name) as other}
-                      <button class="menu-item" onclick={() => { closeSpeakerMenu(); onCombineSpeakers(speaker.name, other.name); }}>{other.name}</button>
+                    {#each speakers.filter((s) => s.id !== speaker.id) as other}
+                      <button class="menu-item" onclick={() => { closeSpeakerMenu(); onCombineSpeakers(speaker.id, other.id); }}>{other.name}</button>
                     {/each}
                   </div>
                 {:else}
-                  <button class="menu-item" onclick={() => { combiningFromSpeaker = speaker.name; }}>Merge into...</button>
+                  <button class="menu-item" onclick={() => { combiningFromSpeaker = speaker.id; }}>Merge into...</button>
                 {/if}
-                {#if speaker.used_in_other_transcriptions}
-                  <button class="menu-item menu-item-warning" onclick={() => { closeSpeakerMenu(); onUnassignSpeaker(speaker.name); }}>Unassign</button>
-                {:else}
-                  <button class="menu-item menu-item-danger" onclick={() => { closeSpeakerMenu(); onDeleteSpeaker(speaker.name); }}>Delete</button>
-                {/if}
+                <button class="menu-item menu-item-danger" onclick={() => { closeSpeakerMenu(); onDeleteSpeaker(speaker.id); }}>Delete</button>
               </div>
             {/if}
           </div>
         {/if}
       </div>
+      {#if editingProfileId === speaker.id}
+        <div class="profile-editor">
+          <textarea
+            class="profile-description"
+            bind:value={editDescription}
+            placeholder="Description"
+            rows="2"
+          ></textarea>
+          <label class="photo-label">
+            {speaker.has_photo ? "Replace photo" : "Upload photo"} (PNG/JPEG, ≤ 1 MB)
+            <input type="file" accept="image/png,image/jpeg" onchange={(e) => onPhotoSelected(e, speaker)} disabled={savingProfile} />
+          </label>
+          {#if profileError}
+            <span class="profile-error">{profileError}</span>
+          {/if}
+          <div class="speaker-actions">
+            <button class="btn-small btn-primary" onclick={() => saveProfile(speaker)} disabled={savingProfile}>
+              {savingProfile ? "Saving..." : "Save"}
+            </button>
+            <button class="btn-small" onclick={cancelProfile} disabled={savingProfile}>Cancel</button>
+          </div>
+        </div>
+      {/if}
     {/each}
   </div>
   <div class="new-speaker-row">
@@ -260,6 +364,15 @@
     height: 10px;
     border-radius: 50%;
     flex-shrink: 0;
+  }
+
+  .speaker-photo {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    background: #eee;
   }
 
   .speaker-name {
@@ -373,13 +486,6 @@
     background: #fef0f0;
   }
 
-  .menu-item-warning {
-    color: #b86800;
-  }
-  .menu-item-warning:hover {
-    background: #fef8e0;
-  }
-
   .menu-submenu {
     border-top: 1px solid #eee;
     padding-top: 0.2rem;
@@ -391,6 +497,41 @@
     font-size: 0.7rem;
     color: #999;
     font-weight: 600;
+  }
+
+  .profile-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.4rem 0.5rem 0.6rem;
+    margin: 0 0.4rem 0.4rem;
+    background: #f7f9fc;
+    border: 1px solid #e3e9f0;
+    border-radius: 6px;
+  }
+
+  .profile-description {
+    width: 100%;
+    box-sizing: border-box;
+    font-size: 0.8rem;
+    padding: 0.3rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    resize: vertical;
+    font-family: inherit;
+  }
+
+  .photo-label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    font-size: 0.72rem;
+    color: #666;
+  }
+
+  .profile-error {
+    color: #c00;
+    font-size: 0.72rem;
   }
 
   .new-speaker-row {
