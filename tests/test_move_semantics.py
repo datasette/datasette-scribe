@@ -23,12 +23,12 @@ from .test_collection_sharing import (
 
 
 @pytest.mark.asyncio
-async def test_move_into_collection_unlinks_and_cleans(tmp_path):
+async def test_move_into_collection_copies_speakers(tmp_path):
     ds, db = await scribe_db(tmp_path)
     # standalone transcript with its own speakers + assignments + a photo
     t = await new_transcription(db)
     s = await create_speaker_in_transcript(db, t, "Speaker 1")
-    await assign(db, t, s)
+    eid = await assign(db, t, s)
     await db.execute_write(
         "insert into datasette_scribe_speaker_photos (speaker_id, data, content_type)"
         " values (?, ?, 'image/png')",
@@ -42,16 +42,31 @@ async def test_move_into_collection_unlinks_and_cleans(tmp_path):
         {"database": DB, "transcription_id": t},
     )
     body = r.json()
-    assert body["ok"] and body["unlinked_entries"] >= 1
-    # assignments cleared
+    assert body["ok"] and body["copied_speakers"] == 1
+    # the entry is still assigned — to a freshly created collection-scoped speaker
+    entry = (
+        await db.execute(
+            "select speaker_id from datasette_scribe_transcription_entries where id=?",
+            [eid],
+        )
+    ).first()
+    assert entry["speaker_id"] is not None
+    copy = (
+        await db.execute(
+            "select id, name from datasette_scribe_speakers"
+            " where collection_id=? and name='Speaker 1'",
+            [c],
+        )
+    ).first()
+    assert copy is not None and entry["speaker_id"] == copy["id"]
+    # the photo was carried onto the copy
     assert (
         await db.execute(
-            "select count(*) c from datasette_scribe_transcription_entries"
-            " where transcription_id=? and speaker_id is not null",
-            [t],
+            "select count(*) c from datasette_scribe_speaker_photos where speaker_id=?",
+            [copy["id"]],
         )
-    ).first()["c"] == 0
-    # transcript-scoped speaker + its photo gone
+    ).first()["c"] == 1
+    # the old transcript-scoped speaker + its photo are gone
     assert (
         await db.execute(
             "select count(*) c from datasette_scribe_speakers where transcription_id=?",
@@ -82,7 +97,7 @@ async def test_sibling_speakers_survive_when_one_leaves(tmp_path):
     await add_to_collection(db, c, t1)
     await add_to_collection(db, c, t2)
     shared = await create_speaker_in_collection(db, c, "Alice")
-    await assign(db, t1, shared)
+    e1 = await assign(db, t1, shared)
     await assign(db, t2, shared)
 
     # t1 leaves the collection
@@ -92,20 +107,29 @@ async def test_sibling_speakers_survive_when_one_leaves(tmp_path):
         {"database": DB, "transcription_id": t1},
     )
     assert r.json()["ok"]
-    # collection-scoped "Alice" still exists (t2 still uses her)
+    # collection-scoped "Alice" still exists (t2 still uses her, and collection
+    # speakers are never deleted on move)
     assert (
         await db.execute(
             "select count(*) c from datasette_scribe_speakers where id=?", [shared]
         )
     ).first()["c"] == 1
-    # t1's assignment was unlinked; t2's preserved
-    assert (
+    # t1's entry is now assigned to a fresh transcript-scoped copy, not unlinked
+    e1_speaker = (
         await db.execute(
-            "select count(*) c from datasette_scribe_transcription_entries"
-            " where transcription_id=? and speaker_id=?",
-            [t1, shared],
+            "select speaker_id from datasette_scribe_transcription_entries where id=?",
+            [e1],
         )
-    ).first()["c"] == 0
+    ).first()["speaker_id"]
+    assert e1_speaker is not None and e1_speaker != shared
+    copy = (
+        await db.execute(
+            "select transcription_id, name from datasette_scribe_speakers where id=?",
+            [e1_speaker],
+        )
+    ).first()
+    assert copy["transcription_id"] == t1 and copy["name"] == "Alice"
+    # t2's assignment to the shared collection speaker is preserved
     assert (
         await db.execute(
             "select count(*) c from datasette_scribe_transcription_entries"
@@ -134,40 +158,85 @@ async def test_leaving_collection_makes_actor_owner(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_move_a_to_b_unlinks(tmp_path):
+async def test_move_a_to_b_copies(tmp_path):
     ds, db = await scribe_db(tmp_path)
     a = await new_collection(db, "A")
     b = await new_collection(db, "B")
     t = await new_transcription(db)
     await add_to_collection(db, a, t)
     sa = await create_speaker_in_collection(db, a, "X")
-    await assign(db, t, sa)
+    eid = await assign(db, t, sa)
     r = await client_post(
         ds,
         f"/-/api/scribe/transcription/{t}/move",
         {"database": DB, "collection_id": b},
     )
     body = r.json()
-    assert body["ok"] and body["collection_id"] == b and body["unlinked_entries"] >= 1
+    assert body["ok"] and body["collection_id"] == b and body["copied_speakers"] == 1
     assert (
         await db.execute(
             "select collection_id from datasette_scribe_collection_transcriptions where transcription_id=?",
             [t],
         )
     ).first()["collection_id"] == b
-    assert (
+    # the entry is still assigned — to a fresh B-scoped copy of "X"
+    entry_speaker = (
         await db.execute(
-            "select count(*) c from datasette_scribe_transcription_entries"
-            " where transcription_id=? and speaker_id is not null",
-            [t],
+            "select speaker_id from datasette_scribe_transcription_entries where id=?",
+            [eid],
         )
-    ).first()["c"] == 0
+    ).first()["speaker_id"]
+    assert entry_speaker is not None
+    bx = (
+        await db.execute(
+            "select id from datasette_scribe_speakers where collection_id=? and name='X'",
+            [b],
+        )
+    ).first()
+    assert bx is not None and entry_speaker == bx["id"]
     # A's collection-scoped speaker is untouched (other members could use it)
     assert (
         await db.execute(
             "select count(*) c from datasette_scribe_speakers where id=?", [sa]
         )
     ).first()["c"] == 1
+
+
+@pytest.mark.asyncio
+async def test_move_keeps_speakers_separate_on_name_clash(tmp_path):
+    """A copied speaker never auto-merges into a same-named destination speaker;
+    it gets a numbered suffix instead (merging is a later, deliberate action)."""
+    ds, db = await scribe_db(tmp_path)
+    c = await new_collection(db, "C")
+    existing = await create_speaker_in_collection(db, c, "Alice")
+    # standalone transcript whose speaker is also named "Alice"
+    t = await new_transcription(db)
+    mine = await create_speaker_in_transcript(db, t, "Alice")
+    eid = await assign(db, t, mine)
+
+    r = await client_post(
+        ds,
+        f"/-/api/scribe/collections/{c}/add-transcription",
+        {"database": DB, "transcription_id": t},
+    )
+    assert r.json()["ok"]
+    # two distinct "Alice" rows now live in the collection
+    rows = (
+        await db.execute(
+            "select id, name from datasette_scribe_speakers where collection_id=?"
+            " order by id",
+            [c],
+        )
+    ).rows
+    assert [row["name"] for row in rows] == ["Alice", "Alice (2)"]
+    # the moved entry points at the suffixed copy, not the pre-existing speaker
+    entry_speaker = (
+        await db.execute(
+            "select speaker_id from datasette_scribe_transcription_entries where id=?",
+            [eid],
+        )
+    ).first()["speaker_id"]
+    assert entry_speaker == rows[1]["id"] and entry_speaker != existing
 
 
 @pytest.mark.asyncio
