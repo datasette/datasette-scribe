@@ -407,7 +407,7 @@
     }
   }
 
-  // Collection assignment — moving unlinks speakers, so confirm first.
+  // Collection assignment — moving copies speakers to the new scope, so confirm first.
   let movingCollection = $state(false);
   let moveConfirmOpen = $state(false);
   let pendingCollectionId: number | null = $state(null);
@@ -448,9 +448,9 @@
     );
     movingCollection = false;
     if (data?.ok) {
-      moveToast = `Moved. ${data.unlinked_entries} ${
-        data.unlinked_entries === 1 ? "entry" : "entries"
-      } unassigned.`;
+      moveToast = `Moved. ${data.copied_speakers} ${
+        data.copied_speakers === 1 ? "speaker" : "speakers"
+      } carried over.`;
       // Reload so the sidebar reflects the new scope's speakers and the Share
       // button targets the new scope.
       setTimeout(() => window.location.reload(), 700);
@@ -637,9 +637,9 @@
         {/if}
       </h3>
       <p>
-        Moving this transcript will unassign all its speakers — you'll reassign
-        them in the new scope. Sharing will also change to the destination's
-        settings.
+        Your speakers come along — duplicate names in the destination get a
+        numbered suffix, so you can merge them later if you want. Sharing will
+        also change to the destination's settings.
       </p>
       <div class="confirm-actions">
         <button class="btn-primary-lg" onclick={confirmMove}>Continue</button>

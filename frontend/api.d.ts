@@ -319,10 +319,10 @@ export interface paths {
                              */
                             error: string | null;
                             /**
-                             * Unlinked Entries
+                             * Copied Speakers
                              * @default null
                              */
-                            unlinked_entries: number | null;
+                            copied_speakers: number | null;
                             /**
                              * Id
                              * @default null
@@ -383,10 +383,10 @@ export interface paths {
                              */
                             error: string | null;
                             /**
-                             * Unlinked Entries
+                             * Copied Speakers
                              * @default null
                              */
-                            unlinked_entries: number | null;
+                            copied_speakers: number | null;
                             /**
                              * Id
                              * @default null
@@ -449,10 +449,10 @@ export interface paths {
                              */
                             error: string | null;
                             /**
-                             * Unlinked Entries
+                             * Copied Speakers
                              * @default null
                              */
-                            unlinked_entries: number | null;
+                            copied_speakers: number | null;
                             /**
                              * Id
                              * @default null
@@ -513,10 +513,10 @@ export interface paths {
                              */
                             error: string | null;
                             /**
-                             * Unlinked Entries
+                             * Copied Speakers
                              * @default null
                              */
-                            unlinked_entries: number | null;
+                            copied_speakers: number | null;
                             /**
                              * Id
                              * @default null
@@ -577,10 +577,10 @@ export interface paths {
                              */
                             error: string | null;
                             /**
-                             * Unlinked Entries
+                             * Copied Speakers
                              * @default null
                              */
-                            unlinked_entries: number | null;
+                            copied_speakers: number | null;
                             /**
                              * Id
                              * @default null
@@ -649,10 +649,10 @@ export interface paths {
                              */
                             error: string | null;
                             /**
-                             * Unlinked Entries
+                             * Copied Speakers
                              * @default null
                              */
-                            unlinked_entries: number | null;
+                            copied_speakers: number | null;
                             /**
                              * Id
                              * @default null
@@ -713,10 +713,10 @@ export interface paths {
                              */
                             error: string | null;
                             /**
-                             * Unlinked Entries
+                             * Copied Speakers
                              * @default null
                              */
-                            unlinked_entries: number | null;
+                            copied_speakers: number | null;
                             /**
                              * Id
                              * @default null
@@ -816,10 +816,10 @@ export interface paths {
                              */
                             error: string | null;
                             /**
-                             * Unlinked Entries
+                             * Copied Speakers
                              * @default null
                              */
-                            unlinked_entries: number | null;
+                            copied_speakers: number | null;
                             /**
                              * Id
                              * @default null
@@ -885,10 +885,10 @@ export interface paths {
                              */
                             error: string | null;
                             /**
-                             * Unlinked Entries
+                             * Copied Speakers
                              * @default null
                              */
-                            unlinked_entries: number | null;
+                            copied_speakers: number | null;
                             /**
                              * Id
                              * @default null
@@ -954,10 +954,10 @@ export interface paths {
                              */
                             error: string | null;
                             /**
-                             * Unlinked Entries
+                             * Copied Speakers
                              * @default null
                              */
-                            unlinked_entries: number | null;
+                            copied_speakers: number | null;
                             /**
                              * Id
                              * @default null
@@ -1018,10 +1018,10 @@ export interface paths {
                              */
                             error: string | null;
                             /**
-                             * Unlinked Entries
+                             * Copied Speakers
                              * @default null
                              */
-                            unlinked_entries: number | null;
+                            copied_speakers: number | null;
                             /**
                              * Id
                              * @default null
@@ -1082,10 +1082,10 @@ export interface paths {
                              */
                             error: string | null;
                             /**
-                             * Unlinked Entries
+                             * Copied Speakers
                              * @default null
                              */
-                            unlinked_entries: number | null;
+                            copied_speakers: number | null;
                             /**
                              * Id
                              * @default null
@@ -1144,10 +1144,10 @@ export interface paths {
                             /** Ok */
                             ok: boolean;
                             /**
-                             * Unlinked Entries
+                             * Copied Speakers
                              * @default 0
                              */
-                            unlinked_entries: number;
+                            copied_speakers: number;
                             /**
                              * Collection Id
                              * @default null

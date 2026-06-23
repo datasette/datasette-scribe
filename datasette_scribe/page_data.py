@@ -186,8 +186,8 @@ class DeleteSpeakerRequest(BaseModel):
 class EditResponse(BaseModel):
     ok: bool
     error: str | None = None
-    # Number of entries whose speaker was unassigned by a scope change (move).
-    unlinked_entries: int | None = None
+    # Number of speakers carried into the new scope by a move (copy-on-move).
+    copied_speakers: int | None = None
     # Newly created row id, when the endpoint creates one (e.g. create speaker).
     id: int | None = None
 
@@ -199,7 +199,7 @@ class MoveTranscriptionRequest(BaseModel):
 
 class MoveResponse(BaseModel):
     ok: bool
-    unlinked_entries: int = 0
+    copied_speakers: int = 0
     collection_id: int | None = None
     error: str | None = None
 

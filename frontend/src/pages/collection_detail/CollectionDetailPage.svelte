@@ -24,7 +24,7 @@
   const canManageShare = !!(share && share.available && share.can_manage);
   let shareOpen = $state(false);
 
-  // Moving a transcript in/out of a collection unlinks its speakers — confirm.
+  // Moving a transcript in/out of a collection copies its speakers — confirm.
   let pendingMove: { kind: "add" | "remove"; tid: number } | null = $state(null);
   let toast: string | null = $state(null);
 
@@ -122,8 +122,8 @@
       error = (apiError as any)?.error ?? `Failed to ${kind} transcription`;
       return;
     }
-    const n = data.unlinked_entries ?? 0;
-    toast = `Done. ${n} ${n === 1 ? "entry" : "entries"} unassigned.`;
+    const n = data.copied_speakers ?? 0;
+    toast = `Done. ${n} ${n === 1 ? "speaker" : "speakers"} carried over.`;
     if (kind === "add") {
       const added = available.find((t) => t.id === tid);
       if (added) {
@@ -326,8 +326,9 @@
     <div class="confirm-modal" role="dialog" aria-label="Confirm move" tabindex="-1" onclick={(e) => e.stopPropagation()}>
       <h3>{pendingMove.kind === "add" ? "Add to collection?" : "Remove from collection?"}</h3>
       <p>
-        This unassigns all of the transcript's speakers — you'll reassign them in
-        the new scope. Sharing changes to the destination's settings.
+        The transcript's speakers come along — duplicate names in the
+        destination get a numbered suffix, so you can merge them later. Sharing
+        changes to the destination's settings.
       </p>
       <div class="confirm-actions">
         <button class="btn-primary-lg" onclick={confirmMove}>Continue</button>

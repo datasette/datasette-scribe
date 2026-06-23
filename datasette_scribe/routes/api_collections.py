@@ -18,7 +18,7 @@ from ..permissions import (
     seed_owner_grant,
 )
 from ..router import router, check_permission, ensure_schema
-from ._scope import unlink_and_rescope
+from ._scope import copy_and_rescope
 
 
 def _actor_id(request):
@@ -174,10 +174,10 @@ async def api_add_transcription_to_collection(
     if not await can_manage_collection(datasette, request.actor, body.database, cid):
         raise Forbidden("collection-manage")
 
-    affected = await unlink_and_rescope(
+    copied = await copy_and_rescope(
         datasette, body.database, tid, new_collection_id=cid
     )
-    return Response.json(EditResponse(ok=True, unlinked_entries=affected).model_dump())
+    return Response.json(EditResponse(ok=True, copied_speakers=copied).model_dump())
 
 
 @router.POST(
@@ -201,13 +201,13 @@ async def api_remove_transcription_from_collection(
     if not await can_manage_collection(datasette, request.actor, body.database, cid):
         raise Forbidden("collection-manage")
 
-    affected = await unlink_and_rescope(
+    copied = await copy_and_rescope(
         datasette, body.database, tid, new_collection_id=None
     )
     # Now standalone: seed an owner grant so the transcript is not left
     # ownerless (the collection's grants no longer apply once membership is gone).
     await seed_owner_grant(datasette, body.database, tid, _actor_id(request))
-    return Response.json(EditResponse(ok=True, unlinked_entries=affected).model_dump())
+    return Response.json(EditResponse(ok=True, copied_speakers=copied).model_dump())
 
 
 @router.POST(
@@ -223,8 +223,8 @@ async def api_move_transcription(
 ):
     """Move a transcript to a collection (or to standalone, collection_id=None).
 
-    One call for the transcription detail dropdown: wraps unlink_and_rescope with
-    the same permission checks as add/remove and returns unlinked_entries for the
+    One call for the transcription detail dropdown: wraps copy_and_rescope with
+    the same permission checks as add/remove and returns copied_speakers for the
     confirm summary plus the resulting collection_id.
     """
     await ensure_schema(datasette, body.database)
@@ -263,13 +263,13 @@ async def api_move_transcription(
         ):
             raise Forbidden("collection-manage")
 
-    affected = await unlink_and_rescope(
+    copied = await copy_and_rescope(
         datasette, body.database, tid, new_collection_id=body.collection_id
     )
     if body.collection_id is None:
         await seed_owner_grant(datasette, body.database, tid, _actor_id(request))
     return Response.json(
         MoveResponse(
-            ok=True, unlinked_entries=affected, collection_id=body.collection_id
+            ok=True, copied_speakers=copied, collection_id=body.collection_id
         ).model_dump()
     )

@@ -18,7 +18,7 @@ from ._scope import (
     scope_columns,
     scope_of_transcript,
     store_segments,
-    unlink_and_rescope,
+    copy_and_rescope,
 )
 
 
@@ -116,10 +116,9 @@ async def api_new_transcription(
 
     if body.collection_id is not None:
         # Assigning a fresh transcript to a collection is a move: its just-
-        # extracted transcript-scoped speakers are unlinked so the collected
-        # transcript carries no transcript-scoped speakers (the user reassigns
-        # from the collection roster).
-        await unlink_and_rescope(
+        # extracted transcript-scoped speakers are copied into the collection
+        # scope (name-suffixed on clash) and the entries keep their assignments.
+        await copy_and_rescope(
             datasette,
             body.database,
             transcription_id,
