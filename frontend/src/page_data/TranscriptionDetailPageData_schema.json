@@ -1,5 +1,30 @@
 {
   "$defs": {
+    "ActorInfo": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "ActorInfo",
+      "type": "object"
+    },
     "CollectionSummary": {
       "properties": {
         "id": {
@@ -26,6 +51,44 @@
         "name"
       ],
       "title": "CollectionSummary",
+      "type": "object"
+    },
+    "ShareInfo": {
+      "properties": {
+        "resource_type": {
+          "title": "Resource Type",
+          "type": "string"
+        },
+        "parent": {
+          "title": "Parent",
+          "type": "string"
+        },
+        "child": {
+          "title": "Child",
+          "type": "string"
+        },
+        "features": {
+          "default": "",
+          "title": "Features",
+          "type": "string"
+        },
+        "can_manage": {
+          "default": false,
+          "title": "Can Manage",
+          "type": "boolean"
+        },
+        "available": {
+          "default": false,
+          "title": "Available",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "resource_type",
+        "parent",
+        "child"
+      ],
+      "title": "ShareInfo",
       "type": "object"
     },
     "TranscriptionEdit": {
@@ -85,7 +148,7 @@
         "speaker_id": {
           "anyOf": [
             {
-              "type": "string"
+              "type": "integer"
             },
             {
               "type": "null"
@@ -142,14 +205,19 @@
           "title": "Name",
           "type": "string"
         },
-        "is_original": {
-          "default": true,
-          "title": "Is Original",
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "is_configured": {
+          "default": false,
+          "title": "Is Configured",
           "type": "boolean"
         },
-        "used_in_other_transcriptions": {
+        "has_photo": {
           "default": false,
-          "title": "Used In Other Transcriptions",
+          "title": "Has Photo",
           "type": "boolean"
         }
       },
@@ -252,6 +320,18 @@
           "default": 0,
           "title": "Speakers Count",
           "type": "integer"
+        },
+        "created_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Created By"
         }
       },
       "required": [
@@ -334,6 +414,33 @@
       },
       "title": "All Collections",
       "type": "array"
+    },
+    "actor": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ActorInfo"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "can_edit": {
+      "default": true,
+      "title": "Can Edit",
+      "type": "boolean"
+    },
+    "share": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ShareInfo"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     }
   },
   "required": [

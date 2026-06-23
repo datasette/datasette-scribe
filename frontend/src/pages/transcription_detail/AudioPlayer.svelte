@@ -9,18 +9,24 @@
     entries,
     speakerColorMap,
     filterSpeaker,
+    playbackRate,
     onTogglePlay,
     onSeek,
+    onSetPlaybackRate,
   }: {
     playing: boolean;
     currentTime: number;
     duration: number;
     entries: TranscriptionEntry[];
-    speakerColorMap: Record<string, string>;
-    filterSpeaker: string | null;
+    speakerColorMap: Record<number, string>;
+    filterSpeaker: number | null;
+    playbackRate: number;
     onTogglePlay: () => void;
     onSeek: (time: number) => void;
+    onSetPlaybackRate: (rate: number) => void;
   } = $props();
+
+  const PLAYBACK_RATES = [0.8, 1, 1.25, 1.5, 2];
 
   function segmentColor(entry: TranscriptionEntry): string {
     if (!filterSpeaker) return colorFor(entry, speakerColorMap);
@@ -94,6 +100,17 @@
     {/if}
   </button>
 
+  <select
+    class="speed-select"
+    aria-label="Playback speed"
+    value={playbackRate}
+    onchange={(e) => onSetPlaybackRate(Number((e.currentTarget as HTMLSelectElement).value))}
+  >
+    {#each PLAYBACK_RATES as rate}
+      <option value={rate}>{rate}x</option>
+    {/each}
+  </select>
+
   <span class="time-display">{formatTime(currentTime)}</span>
 
   <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -104,7 +121,7 @@
           <div
             class="timeline-segment"
             style="left: {(entry.start / duration) * 100}%; width: {((entry.end - entry.start) / duration) * 100}%; background: {segmentColor(entry)};"
-            title="{entry.speaker_id ?? 'Speaker'}: {formatTime(entry.start)} - {formatTime(entry.end)}"
+            title="{formatTime(entry.start)} - {formatTime(entry.end)}"
           ></div>
         {/each}
       {/if}
@@ -147,6 +164,18 @@
   }
   .play-btn:hover {
     background: #555;
+  }
+
+  .speed-select {
+    flex-shrink: 0;
+    font-size: 0.8rem;
+    font-variant-numeric: tabular-nums;
+    color: #333;
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    padding: 0.25rem 0.4rem;
+    cursor: pointer;
   }
 
   .time-display {

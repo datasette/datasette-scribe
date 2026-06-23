@@ -5,9 +5,29 @@ from datasette_vite import vite_entry
 # Import route modules to trigger route registration on the shared router
 from .routes import pages, api_transcriptions, api_speakers, api_collections
 from .router import router, SCRIBE_ACCESS_NAME
+from . import permissions
+from .permissions import (
+    ACTION_COLLECTION_EDIT,
+    ACTION_COLLECTION_MANAGE,
+    ACTION_COLLECTION_VIEW,
+    ACTION_EDIT,
+    ACTION_MANAGE,
+    ACTION_VIEW,
+    ScribeCollectionResource,
+    ScribeTranscriptionResource,
+    scribe_acl_roles,
+    scribe_collection_acl_roles,
+)
 from .cli import scribe_cli
 
-_ = (pages, api_transcriptions, api_speakers, api_collections)
+_ = (pages, api_transcriptions, api_speakers, api_collections, permissions)
+
+# Optional: serve the <datasette-acl-share-dialog> bundle on scribe pages only.
+try:
+    from datasette_acl_share import datasette_share_assets, share_capabilities
+except ImportError:  # pragma: no cover - datasette-acl-share not installed
+    datasette_share_assets = None
+    share_capabilities = None
 
 
 @hookimpl
@@ -24,14 +44,85 @@ def extra_template_vars(datasette):
     return {"datasette_scribe_vite_entry": entry}
 
 
+def _is_share_page(request):
+    # The share dialog renders on the transcription detail page (transcription
+    # or collection ACL) and the collection detail page (collection ACL).
+    if request is None:
+        return False
+    return (
+        "/-/scribe/transcription/" in request.path
+        or "/-/scribe/collections/" in request.path
+    )
+
+
+@hookimpl
+def extra_js_urls(datasette, request):
+    if datasette_share_assets is None or not _is_share_page(request):
+        return []
+    return datasette_share_assets(datasette)["js"]
+
+
+@hookimpl
+def extra_css_urls(datasette, request):
+    if datasette_share_assets is None or not _is_share_page(request):
+        return []
+    return datasette_share_assets(datasette)["css"]
+
+
 @hookimpl
 def register_actions(datasette):
     return [
+        # Global gate: can this actor use scribe at all.
         Action(
             name=SCRIBE_ACCESS_NAME,
             description="Can access scribe pages",
         ),
+        # Per-transcription actions, resolved by datasette-acl against grants on
+        # ScribeTranscriptionResource. view < edit < manage (each requires view).
+        Action(
+            name=ACTION_VIEW,
+            description="View a transcription",
+            resource_class=ScribeTranscriptionResource,
+        ),
+        Action(
+            name=ACTION_EDIT,
+            description="Edit a transcription",
+            resource_class=ScribeTranscriptionResource,
+            also_requires=ACTION_VIEW,
+        ),
+        Action(
+            name=ACTION_MANAGE,
+            description="Manage sharing for a transcription",
+            resource_class=ScribeTranscriptionResource,
+            also_requires=ACTION_VIEW,
+        ),
+        # Per-collection actions, resolved against grants on
+        # ScribeCollectionResource. A collected transcript inherits these.
+        Action(
+            name=ACTION_COLLECTION_VIEW,
+            description="View a collection",
+            resource_class=ScribeCollectionResource,
+        ),
+        Action(
+            name=ACTION_COLLECTION_EDIT,
+            description="Edit a collection",
+            resource_class=ScribeCollectionResource,
+            also_requires=ACTION_COLLECTION_VIEW,
+        ),
+        Action(
+            name=ACTION_COLLECTION_MANAGE,
+            description="Manage sharing for a collection",
+            resource_class=ScribeCollectionResource,
+            also_requires=ACTION_COLLECTION_VIEW,
+        ),
     ]
+
+
+@hookimpl
+def datasette_acl_roles(datasette):
+    # Friendly Viewer / Editor / Manager roles for the share dialog. No-op when
+    # datasette-acl is not installed.
+    return scribe_acl_roles() + scribe_collection_acl_roles()
 
 
 @hookimpl
@@ -56,6 +147,7 @@ def database_actions(datasette, actor, database):
 
 try:
     from datasette_sidebar.hookspecs import SidebarApp
+
     # TODO clean this up
     def _first_visible_db(datasette):
         for name in datasette.databases:
@@ -69,7 +161,11 @@ try:
             SidebarApp(
                 label="Scribe",
                 description="Audio transcription manager",
-                href=lambda db: f"/{db}/-/scribe" if db else f"/{_first_visible_db(datasette)}/-/scribe",
+                href=lambda db: (
+                    f"/{db}/-/scribe"
+                    if db
+                    else f"/{_first_visible_db(datasette)}/-/scribe"
+                ),
                 icon='<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a3 3 0 0 0-3 3v4a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M3.5 6.5A.5.5 0 0 1 4 7v1a4 4 0 0 0 8 0V7a.5.5 0 0 1 1 0v1a5 5 0 0 1-4.5 4.975V14.5h2a.5.5 0 0 1 0 1h-5a.5.5 0 0 1 0-1h2v-1.525A5 5 0 0 1 3 8V7a.5.5 0 0 1 .5-.5z"/></svg>',
                 color="#6c63ff",
             ),

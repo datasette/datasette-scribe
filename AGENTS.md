@@ -75,6 +75,44 @@ Whenever you modify a route's URL pattern or its path parameters (add, remove, r
 
 Routes use `datasette-plugin-router`. URL path parameters require `str` type annotation (the router checks `param.annotation is str` to resolve URL vars). Routes are decorated with `@router.GET(regex)` / `@router.POST(regex)` then `@check_permission()`.
 
+### Sharing & per-transcription permissions
+
+Transcriptions are **private by default to the actor who created them**, backed
+by [datasette-acl](../datasette-acl) (sharing-v2 branch) — both `datasette-acl`
+and `datasette-acl-share` are **soft** dev-group dependencies (editable path
+sources in `pyproject.toml`); scribe imports them defensively and falls back to
+the global `datasette_scribe_scribe` permission when they are absent.
+
+- `permissions.py` is the single source of truth. It defines
+  `ScribeTranscriptionResource` (resource type `scribe-transcription`,
+  `parent` = database name, `child` = transcription id) and the
+  `scribe-view` / `scribe-edit` / `scribe-manage` actions (registered in
+  `__init__.register_actions`). Viewer / Editor / Manager roles are declared via
+  the `datasette_acl_roles` hook.
+- On authenticated web creation (`api_new_transcription`), `created_by` is
+  stored and `seed_owner_grant` gives the creator an owner grant (view+edit+
+  manage). The grant is written by **explicit actions, not role name**, so it
+  does not depend on acl's role registry (see `OWNER_ACTIONS` — the registry
+  attaches reliably only when `datasette.app` is imported before
+  `datasette_scribe`, true under `datasette serve` but not the scribe CLI).
+- Permission checks compose acl grants with an **orphan→global fallback**:
+  transcriptions with `created_by IS NULL` (pre-existing rows, CLI `add` /
+  `import-json` creates, anonymous web creates) fall back to the global
+  `datasette_scribe_scribe` permission. Use `can_view` / `can_edit` /
+  `can_manage` (and `ensure_view` / `ensure_edit`) — never check the acl action
+  alone. Single-resource `datasette.allowed()` evaluates only permission rules
+  (no `resources_sql`), so these work without enumerating transcriptions.
+- Listings are filtered in Python via `filter_visible_ids` (scribe does **not**
+  use `allowed_resources`, since transcriptions are not enumerable from the
+  internal database).
+- The share dialog is the `<datasette-acl-share-dialog>` web component from
+  datasette-acl-share; its bundle is injected on the transcription detail page
+  only (gated `extra_js_urls` / `extra_css_urls`). The detail page data carries
+  `actor`, `can_edit`, and a `share` block (resource identity, capability
+  `features`, `can_manage`) — the Share button shows only when `can_manage`.
+- Tests live in `tests/test_sharing.py`; `tests/conftest.py` imports
+  `datasette.app` first to guarantee correct plugin load order for the session.
+
 ### Schema migration
 
 Schema uses `CREATE TABLE IF NOT EXISTS` and is executed on every page load via `ensure_schema()`. No migration system — delete DB files manually when schema changes.

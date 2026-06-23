@@ -2,9 +2,23 @@
   "$defs": {
     "CollectionSpeakerStat": {
       "properties": {
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
         "name": {
           "title": "Name",
           "type": "string"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "has_photo": {
+          "default": false,
+          "title": "Has Photo",
+          "type": "boolean"
         },
         "entry_count": {
           "title": "Entry Count",
@@ -16,6 +30,7 @@
         }
       },
       "required": [
+        "id",
         "name",
         "entry_count",
         "transcription_count"
@@ -49,6 +64,44 @@
         "name"
       ],
       "title": "CollectionSummary",
+      "type": "object"
+    },
+    "ShareInfo": {
+      "properties": {
+        "resource_type": {
+          "title": "Resource Type",
+          "type": "string"
+        },
+        "parent": {
+          "title": "Parent",
+          "type": "string"
+        },
+        "child": {
+          "title": "Child",
+          "type": "string"
+        },
+        "features": {
+          "default": "",
+          "title": "Features",
+          "type": "string"
+        },
+        "can_manage": {
+          "default": false,
+          "title": "Can Manage",
+          "type": "boolean"
+        },
+        "available": {
+          "default": false,
+          "title": "Available",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "resource_type",
+        "parent",
+        "child"
+      ],
+      "title": "ShareInfo",
       "type": "object"
     },
     "TranscriptionSummary": {
@@ -143,6 +196,18 @@
           "default": 0,
           "title": "Speakers Count",
           "type": "integer"
+        },
+        "created_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Created By"
         }
       },
       "required": [
@@ -186,6 +251,17 @@
       },
       "title": "Speakers",
       "type": "array"
+    },
+    "share": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ShareInfo"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     }
   },
   "required": [

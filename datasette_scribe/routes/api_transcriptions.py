@@ -11,8 +11,19 @@ from ..page_data import (
     NewTranscriptionRequest,
     NewTranscriptionResponse,
 )
+from ..permissions import ensure_edit, ensure_view, seed_owner_grant
 from ..router import router, check_permission, ensure_schema
 from ..voxtral_api import transcribe
+from ._scope import (
+    scope_columns,
+    scope_of_transcript,
+    store_segments,
+    unlink_and_rescope,
+)
+
+
+def _actor_id(request):
+    return request.actor.get("id") if request.actor else None
 
 
 @router.POST("/-/api/scribe/new$", output=NewTranscriptionResponse)
@@ -52,14 +63,20 @@ async def api_new_transcription(
         filename = None
         content_type = None
 
+    created_by = _actor_id(request)
     result = await db.execute_write(
         """
-        insert into datasette_scribe_transcriptions (url, input_type, filename, model, granularity, submitted_at)
-        values (?, ?, ?, ?, ?, datetime('now', 'subsec'))
+        insert into datasette_scribe_transcriptions (url, input_type, filename, model, granularity, submitted_at, created_by)
+        values (?, ?, ?, ?, ?, datetime('now', 'subsec'), ?)
         """,
-        [body.url, input_type, filename, model, granularity],
+        [body.url, input_type, filename, model, granularity, created_by],
     )
     transcription_id = result.lastrowid
+
+    # Private by default: seed the creator as Manager (owner) of this
+    # transcription. No-op for anonymous creates / when acl is absent. Done
+    # before transcription runs so ownership holds even if transcription errors.
+    await seed_owner_grant(datasette, body.database, transcription_id, created_by)
 
     if file_bytes is not None:
         await db.execute_write(
@@ -95,43 +112,18 @@ async def api_new_transcription(
         [usage_json, transcription_id],
     )
 
-    seen_speakers: set[str] = set()
-    for segment in response.segments:
-        # Prefix speaker IDs to keep them unique per transcription — the model
-        # reuses generic names like "Speaker 1" across different audio files.
-        # original_speaker_id preserves the raw value from the model.
-        scoped_speaker = (
-            f"t{transcription_id}_{segment.speaker_id}"
-            if segment.speaker_id
-            else None
-        )
-        await db.execute_write(
-            """
-            insert into datasette_scribe_transcription_entries
-                (transcription_id, start, end, speaker_id, text, original_text, original_speaker_id)
-            values (?, ?, ?, ?, ?, ?, ?)
-            """,
-            [
-                transcription_id,
-                segment.start,
-                segment.end,
-                scoped_speaker,
-                segment.text,
-                segment.text,
-                segment.speaker_id,
-            ],
-        )
-        if scoped_speaker and scoped_speaker not in seen_speakers:
-            seen_speakers.add(scoped_speaker)
-            await db.execute_write(
-                "insert or ignore into datasette_scribe_speakers (name, is_original) values (?, 1)",
-                [scoped_speaker],
-            )
+    await store_segments(db, transcription_id, response.segments)
 
     if body.collection_id is not None:
-        await db.execute_write(
-            "insert into datasette_scribe_collection_transcriptions (collection_id, transcription_id) values (?, ?)",
-            [body.collection_id, transcription_id],
+        # Assigning a fresh transcript to a collection is a move: its just-
+        # extracted transcript-scoped speakers are unlinked so the collected
+        # transcript carries no transcript-scoped speakers (the user reassigns
+        # from the collection roster).
+        await unlink_and_rescope(
+            datasette,
+            body.database,
+            transcription_id,
+            new_collection_id=body.collection_id,
         )
 
     return Response.json(
@@ -141,11 +133,27 @@ async def api_new_transcription(
     )
 
 
-@router.GET("/(?P<database>[^/]+)/-/api/scribe/transcription/(?P<transcription_id>\\d+)/audio$")
+@router.GET(
+    "/(?P<database>[^/]+)/-/api/scribe/transcription/(?P<transcription_id>\\d+)/audio$"
+)
 @check_permission()
-async def api_transcription_audio(datasette, request, database: str, transcription_id: str):
+async def api_transcription_audio(
+    datasette, request, database: str, transcription_id: str
+):
+    await ensure_schema(datasette, database)
     db = datasette.get_database(database)
     tid = int(transcription_id)
+
+    owner_row = (
+        await db.execute(
+            "select created_by from datasette_scribe_transcriptions where id = ?",
+            [tid],
+        )
+    ).first()
+    if owner_row is None:
+        return Response.text("Transcription not found", status=404)
+    await ensure_view(datasette, request.actor, database, tid, owner_row["created_by"])
+
     row = (
         await db.execute(
             "select ab.data, ab.content_type from datasette_scribe_audio_blobs ab where ab.transcription_id = ?",
@@ -183,6 +191,20 @@ async def api_edit_entry(
 
     tid = row["transcription_id"]
 
+    owner_row = (
+        await db.execute(
+            "select created_by from datasette_scribe_transcriptions where id = ?",
+            [tid],
+        )
+    ).first()
+    await ensure_edit(
+        datasette,
+        request.actor,
+        body.database,
+        tid,
+        owner_row["created_by"] if owner_row else None,
+    )
+
     if body.text is not None and body.text != row["text"]:
         await db.execute_write(
             "update datasette_scribe_transcription_entries set text = ? where id = ?",
@@ -200,6 +222,22 @@ async def api_edit_entry(
         )
 
     if body.speaker_id is not None and body.speaker_id != row["speaker_id"]:
+        # The target speaker must belong to this entry's transcript scope.
+        scope = await scope_of_transcript(db, tid)
+        col, ref = scope_columns(scope)
+        ok = (
+            await db.execute(
+                f"select 1 from datasette_scribe_speakers where id = ? and {col} = ?",
+                [body.speaker_id, ref],
+            )
+        ).first()
+        if not ok:
+            return Response.json(
+                EditResponse(
+                    ok=False, error="Speaker not in this transcript's scope"
+                ).model_dump(),
+                status=400,
+            )
         await db.execute_write(
             "update datasette_scribe_transcription_entries set speaker_id = ? where id = ?",
             [body.speaker_id, eid],

@@ -14,6 +14,7 @@ class TranscriptionSummary(BaseModel):
     entries_count: int = 0
     duration: float | None = None
     speakers_count: int = 0
+    created_by: str | None = None
 
 
 class CollectionSummary(BaseModel):
@@ -42,7 +43,7 @@ class TranscriptionEntry(BaseModel):
     id: int
     start: float
     end: float
-    speaker_id: str | None = None
+    speaker_id: int | None = None
     text: str
     original_speaker_id: str | None = None
     original_text: str | None = None
@@ -51,8 +52,9 @@ class TranscriptionEntry(BaseModel):
 class TranscriptionSpeaker(BaseModel):
     id: int
     name: str
-    is_original: bool = True
-    used_in_other_transcriptions: bool = False
+    description: str = ""
+    is_configured: bool = False
+    has_photo: bool = False
 
 
 class TranscriptionEdit(BaseModel):
@@ -61,6 +63,27 @@ class TranscriptionEdit(BaseModel):
     detail: str  # JSON string
     created_at: str
     entry_id: int | None = None
+
+
+class ActorInfo(BaseModel):
+    id: str
+    name: str | None = None
+
+
+# Everything the <datasette-acl-share-dialog> needs to manage sharing for a
+# transcription, plus per-actor capability flags driving UI affordances.
+class ShareInfo(BaseModel):
+    # acl resource identity: resource_type + parent (database) + child (id).
+    resource_type: str
+    parent: str
+    child: str
+    # CSV of enabled dialog sections (people,agents,groups,public) derived from
+    # datasette-acl-share's capability probe. Empty when sharing is unavailable.
+    features: str = ""
+    # Whether the current actor may open the share dialog (manage sharing).
+    can_manage: bool = False
+    # Whether sharing is available at all (datasette-acl + acl-share installed).
+    available: bool = False
 
 
 # /$db/-/scribe/transcription/$id — detail page for a single transcription with entries
@@ -74,6 +97,9 @@ class TranscriptionDetailPageData(BaseModel):
     edits: list[TranscriptionEdit] = []
     collection: CollectionSummary | None = None
     all_collections: list[CollectionSummary] = []
+    actor: ActorInfo | None = None
+    can_edit: bool = True
+    share: ShareInfo | None = None
 
 
 # /$db/-/scribe/new — form to submit a new audio URL for transcription
@@ -83,7 +109,10 @@ class NewTranscriptionPageData(BaseModel):
 
 
 class CollectionSpeakerStat(BaseModel):
+    id: int
     name: str
+    description: str = ""
+    has_photo: bool = False
     entry_count: int
     transcription_count: int
 
@@ -95,6 +124,7 @@ class CollectionDetailPageData(BaseModel):
     transcriptions: list[TranscriptionSummary] = []
     available_transcriptions: list[TranscriptionSummary] = []
     speakers: list[CollectionSpeakerStat] = []
+    share: ShareInfo | None = None
 
 
 # POST /-/api/scribe/new — submit a new audio URL for transcription
@@ -118,7 +148,7 @@ class NewTranscriptionResponse(BaseModel):
 class EditEntryRequest(BaseModel):
     database: str
     text: str | None = None
-    speaker_id: str | None = None
+    speaker_id: int | None = None
 
 
 class CreateSpeakerRequest(BaseModel):
@@ -128,8 +158,8 @@ class CreateSpeakerRequest(BaseModel):
 
 class CombineSpeakersRequest(BaseModel):
     database: str
-    from_speaker: str
-    to_speaker: str
+    from_speaker_id: int
+    to_speaker_id: int
 
 
 class RenameSpeakerRequest(BaseModel):
@@ -137,13 +167,40 @@ class RenameSpeakerRequest(BaseModel):
     new_name: str
 
 
+class UpdateSpeakerRequest(BaseModel):
+    database: str
+    name: str | None = None
+    description: str | None = None
+
+
+class SpeakerPhotoRequest(BaseModel):
+    database: str
+    file_data: str  # base64-encoded image bytes
+
+
 class DeleteSpeakerRequest(BaseModel):
     database: str
-    speaker_name: str
+    speaker_id: int
 
 
 class EditResponse(BaseModel):
     ok: bool
+    error: str | None = None
+    # Number of entries whose speaker was unassigned by a scope change (move).
+    unlinked_entries: int | None = None
+    # Newly created row id, when the endpoint creates one (e.g. create speaker).
+    id: int | None = None
+
+
+class MoveTranscriptionRequest(BaseModel):
+    database: str
+    collection_id: int | None = None
+
+
+class MoveResponse(BaseModel):
+    ok: bool
+    unlinked_entries: int = 0
+    collection_id: int | None = None
     error: str | None = None
 
 

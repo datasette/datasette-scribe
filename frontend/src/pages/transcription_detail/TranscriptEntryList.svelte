@@ -1,12 +1,21 @@
 <script lang="ts">
-  import type { TranscriptionEntry } from "../../page_data/TranscriptionDetailPageData.types";
-  import { formatTime, colorFor, isEntryEdited } from "./transcription-utils";
+  import type {
+    TranscriptionEntry,
+    TranscriptionSpeaker,
+  } from "../../page_data/TranscriptionDetailPageData.types";
+  import {
+    formatTime,
+    colorFor,
+    isEntryEdited,
+    speakerChanged,
+  } from "./transcription-utils";
 
   let {
     entries,
     displayedEntries,
     filterSpeaker,
-    allSpeakerNames,
+    allSpeakers,
+    speakerNameById,
     speakerColorMap,
     activeIndex,
     showOriginal,
@@ -17,9 +26,10 @@
   }: {
     entries: TranscriptionEntry[];
     displayedEntries: TranscriptionEntry[];
-    filterSpeaker: string | null;
-    allSpeakerNames: string[];
-    speakerColorMap: Record<string, string>;
+    filterSpeaker: number | null;
+    allSpeakers: TranscriptionSpeaker[];
+    speakerNameById: Record<number, string>;
+    speakerColorMap: Record<number, string>;
     activeIndex: number;
     showOriginal: boolean;
     onClearFilter: () => void;
@@ -67,9 +77,9 @@
 </script>
 
 <div class="content">
-  {#if filterSpeaker}
+  {#if filterSpeaker != null}
     <div class="filter-bar">
-      Showing entries for <strong>{filterSpeaker}</strong>
+      Showing entries for <strong>{speakerNameById[filterSpeaker] ?? "speaker"}</strong>
       <button class="btn-small" onclick={onClearFilter}>Show all</button>
     </div>
   {/if}
@@ -95,14 +105,13 @@
           <select
             class="entry-speaker-select"
             class:entry-speaker-hidden={isContinuation}
-            value={entry.speaker_id ?? ""}
+            value={entry.speaker_id != null ? String(entry.speaker_id) : ""}
             onchange={(e) => onSpeakerSelectChange(e, entry)}
           >
             <option value="">No speaker</option>
-            {#each allSpeakerNames as name}
-              <option value={name}>{name}</option>
+            {#each allSpeakers as s}
+              <option value={String(s.id)}>{s.name}</option>
             {/each}
-            <option value="__new__">New speaker...</option>
           </select>
         </div>
         <div class="entry-content">
@@ -136,12 +145,12 @@
                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
               </svg>
             </button>
-            {#if showOriginal && isEntryEdited(entry)}
+            {#if showOriginal && (isEntryEdited(entry) || speakerChanged(entry, speakerNameById))}
               <div class="original-text">
                 {#if entry.original_text != null && entry.text !== entry.original_text}
                   <div class="original-line"><span class="original-label">Original text:</span> {entry.original_text}</div>
                 {/if}
-                {#if entry.original_speaker_id !== undefined && entry.speaker_id !== entry.original_speaker_id}
+                {#if speakerChanged(entry, speakerNameById)}
                   <div class="original-line"><span class="original-label">Original speaker:</span> {entry.original_speaker_id ?? "none"}</div>
                 {/if}
               </div>
