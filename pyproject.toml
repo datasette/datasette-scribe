@@ -13,6 +13,10 @@ dependencies = [
     "datasette>=1a23",
     "datasette-plugin-router>=0.0.1a2",
     "datasette-vite>=0.0.1a4",
+    # Hard dep (following datasette-paper): with user-profiles installed,
+    # acl-share's share_capabilities() reports people=true, so the share
+    # dialog's People section (search + avatars) is always available.
+    "datasette-user-profiles>=0.1.0a8",
 ]
 
 
@@ -30,8 +34,9 @@ test = ["pytest", "pytest-asyncio"]
 # datasette-acl-share ships the <datasette-acl-share-dialog> bundle. Both are
 # soft dependencies: scribe imports them defensively (see permissions.py) and
 # falls back to the global datasette_scribe_scribe permission when they are
-# absent. They are unpublished sibling checkouts, referenced as editable path
-# sources below for local dev + tests.
+# absent. (datasette-user-profiles, by contrast, is a hard runtime dep — see
+# [project].dependencies above.) All three are unpublished sibling checkouts,
+# referenced as editable path sources below for local dev + tests.
 dev = [
     "pytest",
     "pytest-asyncio",
@@ -44,6 +49,7 @@ yt = ["yt-dlp"]
 [tool.uv.sources]
 datasette-acl = { path = "../datasette-acl", editable = true }
 datasette-acl-share = { path = "../datasette-acl-share", editable = true }
+datasette-user-profiles = { path = "../datasette-user-profiles", editable = true }
 
 [build-system]
 requires = ["setuptools"]

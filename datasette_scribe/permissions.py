@@ -52,9 +52,10 @@ except ImportError:  # pragma: no cover - acl not installed
     AclRole = None
 
 try:
-    from datasette_acl.grants import grant as _acl_grant
+    from datasette_acl.grants import grant as _acl_grant, Principal as _Principal
 except ImportError:  # pragma: no cover - acl not installed
     _acl_grant = None
+    _Principal = None
 
 # acl's global admin permission name (grants blanket manage rights).
 ACL_ADMIN_PERMISSION = "datasette-acl"
@@ -249,7 +250,7 @@ async def seed_owner_grant(datasette, database, transcription_id, created_by) ->
         SCRIBE_TRANSCRIPTION_RESOURCE_TYPE,
         str(database),
         str(transcription_id),
-        actor_id=str(created_by),
+        principal=_Principal.actor(str(created_by)),
         actions=OWNER_ACTIONS,
         by_actor=str(created_by),
     )
@@ -270,7 +271,7 @@ async def seed_collection_owner_grant(
         SCRIBE_COLLECTION_RESOURCE_TYPE,
         str(database),
         str(collection_id),
-        actor_id=str(created_by),
+        principal=_Principal.actor(str(created_by)),
         actions=COLLECTION_OWNER_ACTIONS,
         by_actor=str(created_by),
     )

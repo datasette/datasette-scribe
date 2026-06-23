@@ -68,7 +68,7 @@ async def _add_to_collection(ds, cid, tid):
 async def test_collection_actions_resolve(tmp_path):
     ds = await _make_datasette(tmp_path)
     cid = await _insert_collection(ds, "C")
-    from datasette_acl.grants import grant
+    from datasette_acl.grants import grant, Principal
     from datasette_scribe import permissions as P
 
     await grant(
@@ -76,7 +76,7 @@ async def test_collection_actions_resolve(tmp_path):
         P.SCRIBE_COLLECTION_RESOURCE_TYPE,
         DB,
         str(cid),
-        actor_id="bob",
+        principal=Principal.actor("bob"),
         actions=[P.ACTION_COLLECTION_VIEW],
         by_actor="alice",
     )
@@ -102,14 +102,14 @@ async def test_collection_view_grant_makes_members_visible(tmp_path):
     await _add_to_collection(ds, cid, t2)
     await permissions.seed_collection_owner_grant(ds, DB, cid, "alice")
 
-    from datasette_acl.grants import grant
+    from datasette_acl.grants import grant, Principal
 
     await grant(
         ds,
         permissions.SCRIBE_COLLECTION_RESOURCE_TYPE,
         DB,
         str(cid),
-        actor_id="bob",
+        principal=Principal.actor("bob"),
         actions=[permissions.ACTION_COLLECTION_VIEW],
         by_actor="alice",
     )
@@ -155,14 +155,14 @@ async def test_listing_shows_collection_members_to_grantee(tmp_path):
     t1 = await _insert_transcription(ds, created_by="alice")
     await _add_to_collection(ds, cid, t1)
     await permissions.seed_collection_owner_grant(ds, DB, cid, "alice")
-    from datasette_acl.grants import grant
+    from datasette_acl.grants import grant, Principal
 
     await grant(
         ds,
         permissions.SCRIBE_COLLECTION_RESOURCE_TYPE,
         DB,
         str(cid),
-        actor_id="bob",
+        principal=Principal.actor("bob"),
         actions=[permissions.ACTION_COLLECTION_VIEW],
         by_actor="alice",
     )

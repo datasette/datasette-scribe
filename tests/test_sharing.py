@@ -75,7 +75,7 @@ async def test_owner_private_by_default(tmp_path):
 
 @pytest.mark.asyncio
 async def test_view_grant_shares_read_only(tmp_path):
-    from datasette_acl.grants import grant
+    from datasette_acl.grants import grant, Principal
 
     ds = await _make_datasette(tmp_path)
     tid = await _insert_transcription(ds, created_by="alice")
@@ -91,7 +91,7 @@ async def test_view_grant_shares_read_only(tmp_path):
         permissions.SCRIBE_TRANSCRIPTION_RESOURCE_TYPE,
         DB,
         str(tid),
-        actor_id="bob",
+        principal=Principal.actor("bob"),
         actions=[permissions.ACTION_VIEW],
         by_actor="alice",
     )

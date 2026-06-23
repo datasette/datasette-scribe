@@ -81,7 +81,7 @@ async def _build_share_info(datasette, request, database, tid):
     """
     if _share_capabilities is None:
         return None
-    caps = _share_capabilities(datasette)
+    caps = _share_capabilities()
     features = ",".join(key for key, enabled in caps.items() if enabled)
     # Point the dialog at the transcript's scope: a collected transcript opens
     # its collection's ACL (sharing it shares the whole collection); a standalone
@@ -103,7 +103,7 @@ async def _build_collection_share_info(datasette, request, database, cid):
     :func:`_build_share_info`). Targets the scribe-collection resource."""
     if _share_capabilities is None:
         return None
-    caps = _share_capabilities(datasette)
+    caps = _share_capabilities()
     features = ",".join(key for key, enabled in caps.items() if enabled)
     manage = await can_manage_collection(datasette, request.actor, database, cid)
     return ShareInfo(
